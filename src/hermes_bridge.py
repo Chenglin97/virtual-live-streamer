@@ -311,16 +311,33 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Hermes idle error: {e}")
             response_text = "Hmm, it's quiet in here... anyone out there?"
 
+        response_text = clean_response(response_text)
         audio_filename, words, wtimes, wdurations = generate_tts(response_text)
 
-        self._json_response({
+        resp_data = {
             "response": response_text,
             "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
             "mood": "neutral",
             "words": words,
             "wtimes": wtimes,
             "wdurations": wdurations,
+        }
+
+        # Add idle messages to feed too so frontend picks them up
+        global feed_counter
+        feed_counter += 1
+        message_feed.append({
+            "id": feed_counter,
+            "username": "Aria",
+            "message": "",
+            "is_idle": True,
+            "timestamp": _time.time(),
+            **resp_data,
         })
+        while len(message_feed) > 50:
+            message_feed.pop(0)
+
+        self._json_response(resp_data)
 
     def _handle_feed(self):
         """Return new messages since a given ID. Frontend polls this."""

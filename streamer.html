@@ -97,9 +97,9 @@
         addChatMessage('System', 'Avatar loaded! Type a message to chat.', '#888');
         setStatus('Idle — waiting for chat');
 
-        // Start idle behavior + autonomous talking + Twitch feed polling
+        // Start idle behavior (gestures/moods) + Twitch feed polling
+        // NOTE: idle TALK is handled by the Twitch bridge, not the frontend
         startIdleBehavior();
-        startIdleTalk();
         startFeedPoller();
 
       } catch (error) {
@@ -345,19 +345,21 @@
             for (const msg of data.messages) {
               lastFeedId = Math.max(lastFeedId, msg.id);
 
-              // Skip messages we sent from this UI (they're already displayed)
-              if (feedSourceMessages.has(msg.message)) {
+              // Skip messages we sent from this UI (already displayed)
+              if (msg.message && feedSourceMessages.has(msg.message)) {
                 feedSourceMessages.delete(msg.message);
                 continue;
               }
 
-              // Display the viewer's message in chat
-              const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
-              const color = colors[msg.username.length % colors.length];
-              addChatMessage(msg.username, msg.message, color);
+              // Display the viewer's message in chat (skip idle, they have no viewer msg)
+              if (msg.message && !msg.is_idle) {
+                const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+                const color = colors[msg.username.length % colors.length];
+                addChatMessage(msg.username, msg.message, color);
+              }
 
               // Speak Aria's response with lip sync
-              if (msg.response) {
+              if (msg.response && msg.audio_url) {
                 lastChatTime = Date.now();
                 if (msg.mood && head) {
                   try { head.setMood(msg.mood); } catch(e) {}
