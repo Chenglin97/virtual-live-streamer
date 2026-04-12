@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (large binary files)
+models/
+*.onnx
+*.pth
+*.pt
+*.safetensors
+
+# Config with secrets
+config/config.yaml
+config/secrets.yaml
+.env
+.env.*
+
+# Stream keys and credentials
+*.key
+credentials/
+
+# Logs
+logs/
+*.log
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Assets that are user-specific
+assets/faces/*.jpg
+assets/faces/*.png
+!assets/faces/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp

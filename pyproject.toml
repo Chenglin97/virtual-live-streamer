@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "virtual-live-streamer"
+version = "0.1.0"
+description = "24/7 AI-powered virtual live streamer with real-time face swapping and autonomous AI agent"
+requires-python = ">=3.11"
+license = "MIT"
+
+dependencies = [
+    # Core
+    "numpy>=1.24,<2.0",
+    "opencv-python>=4.10",
+    "Pillow>=10.0",
+    "pyyaml>=6.0",
+
+    # Face engine (Deep-Live-Cam deps)
+    "insightface==0.7.3",
+    "onnxruntime>=1.16",
+
+    # AI Agent
+    "openai>=1.0",
+    "anthropic>=0.30",
+    "pydantic>=2.0",
+    "httpx>=0.25",
+
+    # TTS
+    "edge-tts>=6.1",
+
+    # Streaming
+    # ffmpeg is required as a system dependency
+
+    # Chat integrations
+    "aiohttp>=3.9",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "onnxruntime-gpu>=1.16",
+]
+silicon = [
+    "onnxruntime-silicon>=1.16",
+]
+tts-advanced = [
+    "TTS>=0.22",  # Coqui TTS for higher quality
+]
+hermes = [
+    "hermes-agent",
+]
+twitch = [
+    "twitchio>=2.8",
+]
+youtube = [
+    "pytchat>=0.5",
+]
+bilibili = [
+    "blivedm>=2.0",
+]
+all = [
+    "virtual-live-streamer[cuda,hermes,twitch,youtube,bilibili,tts-advanced]",
+]
+
+[project.scripts]
+vls = "src.orchestrator.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

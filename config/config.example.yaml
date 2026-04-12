@@ -1,0 +1,87 @@
+# Virtual Live Streamer Configuration
+# Copy this to config.yaml and fill in your values.
+
+face_engine:
+  # Path to the source face image
+  source_face: "assets/faces/avatar.png"
+  # Base video source: "webcam", path to video file, or "generate" for AI-generated idle animations
+  base_video: "webcam"
+  # Execution provider: cuda, coreml, cpu, directml, openvino
+  execution_provider: "cuda"
+  # Face enhancer: gfpgan, gpen, or null
+  face_enhancer: "gfpgan"
+  # Output resolution
+  resolution:
+    width: 1280
+    height: 720
+  fps: 30
+
+agent:
+  # LLM provider configuration
+  provider: "openai"  # openai, anthropic, openrouter, nous
+  model: "gpt-4o"
+  api_key: ""  # Or set via AGENT_API_KEY env var
+  # Base URL override (for OpenRouter, Nous Portal, local models)
+  base_url: null
+
+  # Personality / system prompt
+  personality: |
+    You are a friendly, entertaining virtual streamer. You interact with chat,
+    tell stories, react to events, and keep the audience engaged. You have a
+    warm personality and enjoy gaming, music, and technology topics.
+
+  # Memory persistence
+  memory:
+    enabled: true
+    path: "data/agent_memory"
+
+  # Response behavior
+  max_response_length: 200
+  response_cooldown_seconds: 5
+  idle_talk_interval_seconds: 60
+
+tts:
+  # Engine: edge-tts, coqui, or system
+  engine: "edge-tts"
+  # Voice ID (edge-tts voices: https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/voices/list)
+  voice: "en-US-JennyNeural"
+  # Speech rate adjustment (-50% to +50%)
+  rate: "+0%"
+  # Volume adjustment
+  volume: "+0%"
+
+stream:
+  # RTMP endpoint
+  rtmp_url: "rtmp://live.twitch.tv/app"
+  stream_key: ""  # Or set via STREAM_KEY env var
+  # Video encoding
+  encoder: "libx264"
+  bitrate: "4500k"
+  preset: "veryfast"
+  # Audio
+  audio_bitrate: "160k"
+  sample_rate: 44100
+
+chat:
+  # Platform: twitch, youtube, bilibili
+  platform: "twitch"
+  channel: ""
+  # Auth (platform-specific)
+  auth_token: ""  # Or set via CHAT_AUTH_TOKEN env var
+  # Filtering
+  ignore_bots: true
+  command_prefix: "!"
+
+orchestrator:
+  # Health check interval in seconds
+  health_check_interval: 30
+  # Auto-restart on failure
+  auto_restart: true
+  max_restart_attempts: 5
+  restart_cooldown_seconds: 30
+  # Schedule (optional): cron expression for when to stream
+  # Leave empty for 24/7
+  schedule: ""
+  # Logging
+  log_level: "INFO"
+  log_file: "logs/streamer.log"
