@@ -60,3 +60,17 @@ assets/faces/*.png
 tmp/
 temp/
 *.tmp
+
+# Output / generated files
+output/
+
+# Cloned dependencies (install separately)
+wav2lip_model/
+talkinghead_3d/avatars/*.glb
+talkinghead_3d/node_modules/
+
+# Large audio/video files
+*.mp4
+*.avi
+*.wav
+*.mp3
