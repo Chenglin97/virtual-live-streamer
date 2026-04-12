@@ -1,427 +1,438 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Aria — Virtual Streamer</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+  <meta charset="UTF-8">
+  <title>Virtual Live Streamer - Aria</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; background: #1a1a2e; color: white; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
 
-    body {
-      background: #0d0d0d;
-      color: #e0e0e0;
-      font-family: "Segoe UI", Arial, sans-serif;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+    #container { display: flex; width: 100%; height: 100%; }
 
-    #main {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-    }
+    /* Avatar panel */
+    #avatar-panel { flex: 1; position: relative; }
+    #avatar { width: 100%; height: 100%; }
 
-    /* ── Avatar panel ── */
-    #avatar-panel {
-      flex: 1;
-      position: relative;
-      background: #111;
-    }
+    /* Top bar */
+    #topbar { position: absolute; top: 0; left: 0; right: 0; height: 50px; background: rgba(0,0,0,0.6);
+              display: flex; align-items: center; padding: 0 15px; z-index: 10; }
+    #live-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff0000; margin-right: 8px;
+                animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    #live-text { color: #ff0000; font-weight: bold; font-size: 16px; margin-right: 20px; }
+    #streamer-name { font-size: 16px; color: #fff; }
+    #viewer-count { margin-left: auto; color: #aaa; font-size: 14px; }
 
-    #avatar {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    /* Chat panel */
+    #chat-panel { width: 340px; background: #0e0e1a; display: flex; flex-direction: column; border-left: 1px solid #333; }
+    #chat-header { padding: 12px 15px; background: #16162a; font-size: 14px; font-weight: bold; border-bottom: 1px solid #333; }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 10px 15px; font-size: 13px; }
+    .chat-msg { margin-bottom: 8px; line-height: 1.4; }
+    .chat-user { font-weight: bold; margin-right: 6px; }
+    .chat-system { color: #888; font-style: italic; }
 
-    #status-badge {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      background: rgba(0,0,0,0.65);
-      border: 1px solid #ff4444;
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      color: #ff4444;
-    }
-    #status-badge.live { color: #44ff88; border-color: #44ff88; }
+    #chat-input-area { padding: 10px; border-top: 1px solid #333; display: flex; gap: 8px; }
+    #chat-input { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1a1a2e; color: white; font-size: 13px; }
+    #chat-send { padding: 8px 16px; border-radius: 6px; border: none; background: #7c3aed; color: white; cursor: pointer; font-size: 13px; }
+    #chat-send:hover { background: #6d28d9; }
 
-    #subtitle-bar {
-      position: absolute;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 90%;
-      background: rgba(0,0,0,0.72);
-      border-radius: 8px;
-      padding: 6px 14px;
-      font-size: 15px;
-      text-align: center;
-      color: #fff;
-      display: none;
-    }
+    /* Agent status */
+    #status { position: absolute; bottom: 60px; left: 15px; background: rgba(0,0,0,0.5); padding: 6px 12px;
+              border-radius: 20px; font-size: 12px; color: #aaa; z-index: 10; }
+    #debug { display: none; }
 
-    #loading-overlay {
-      position: absolute;
-      inset: 0;
-      background: #0d0d0d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      font-size: 16px;
-      color: #aaa;
-    }
-    #loading-overlay .spinner {
-      width: 36px; height: 36px;
-      border: 3px solid #333;
-      border-top-color: #88ccff;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Chat sidebar ── */
-    #chat-panel {
-      width: 300px;
-      display: flex;
-      flex-direction: column;
-      background: #141414;
-      border-left: 1px solid #222;
-    }
-
-    #chat-header {
-      padding: 12px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #88ccff;
-      border-bottom: 1px solid #222;
-      background: #181818;
-    }
-
-    #chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      scrollbar-width: thin;
-      scrollbar-color: #333 transparent;
-    }
-
-    .msg {
-      padding: 7px 10px;
-      border-radius: 8px;
-      font-size: 13px;
-      line-height: 1.4;
-      max-width: 100%;
-      word-break: break-word;
-    }
-    .msg.viewer {
-      background: #1e2a3a;
-      align-self: flex-end;
-      color: #cce4ff;
-    }
-    .msg.aria {
-      background: #1e2e1e;
-      align-self: flex-start;
-      color: #aaffaa;
-    }
-    .msg.system {
-      background: transparent;
-      color: #555;
-      font-size: 12px;
-      text-align: center;
-      align-self: center;
-    }
-    .msg .username {
-      font-weight: 700;
-      margin-right: 4px;
-    }
-    .msg.viewer .username { color: #88ccff; }
-    .msg.aria .username { color: #88ff88; }
-
-    /* ── Input row ── */
-    #input-row {
-      display: flex;
-      gap: 6px;
-      padding: 10px;
-      border-top: 1px solid #222;
-      background: #181818;
-    }
-
-    #username-input {
-      width: 80px;
-      padding: 7px 8px;
-      border: 1px solid #333;
-      border-radius: 6px;
-      background: #222;
-      color: #ccc;
-      font-size: 13px;
-    }
-
-    #chat-input {
-      flex: 1;
-      padding: 7px 10px;
-      border: 1px solid #333;
-      border-radius: 6px;
-      background: #222;
-      color: #eee;
-      font-size: 13px;
-    }
-
-    #chat-input:focus, #username-input:focus {
-      outline: none;
-      border-color: #88ccff;
-    }
-
-    #send-btn {
-      padding: 7px 14px;
-      background: #2255aa;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    #send-btn:hover { background: #3366cc; }
-    #send-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+    /* Loading overlay */
+    #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+               font-size: 18px; color: #aaa; z-index: 20; }
   </style>
 
   <script type="importmap">
-  { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  { "imports":
+    {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
       "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.7/modules/talkinghead.mjs"
-  }}
+    }
+  }
   </script>
 
   <script type="module">
     import { TalkingHead } from "talkinghead";
 
-    const BACKEND = "http://localhost:5001";
-    const AVATAR_URL = "./avatars/brunette.glb";
-    const IDLE_INTERVAL_MS = 30000;
-
     let head;
-    let isBusy = false;
-    let idleTimer = null;
+    let agentApiUrl = 'http://localhost:5001'; // Backend server
 
-    // ── DOM refs ──────────────────────────────────
-    const avatarEl    = document.getElementById("avatar");
-    const loadingEl   = document.getElementById("loading-overlay");
-    const loadingTxt  = document.getElementById("loading-text");
-    const statusBadge = document.getElementById("status-badge");
-    const subtitleBar = document.getElementById("subtitle-bar");
-    const chatMsgs    = document.getElementById("chat-messages");
-    const chatInput   = document.getElementById("chat-input");
-    const usernameInput = document.getElementById("username-input");
-    const sendBtn     = document.getElementById("send-btn");
+    // ── Initialize Avatar ──
+    document.addEventListener('DOMContentLoaded', async function() {
+      const nodeAvatar = document.getElementById('avatar');
+      const nodeLoading = document.getElementById('loading');
 
-    // ── Helpers ───────────────────────────────────
-    function addMessage(text, type, username = "") {
-      const div = document.createElement("div");
-      div.className = `msg ${type}`;
-      if (username) {
-        const span = document.createElement("span");
-        span.className = "username";
-        span.textContent = username + ":";
-        div.appendChild(span);
-      }
-      div.appendChild(document.createTextNode(text));
-      chatMsgs.appendChild(div);
-      chatMsgs.scrollTop = chatMsgs.scrollHeight;
-    }
-
-    function resetIdleTimer() {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(doIdle, IDLE_INTERVAL_MS);
-    }
-
-    function setBusy(busy) {
-      isBusy = busy;
-      sendBtn.disabled = busy;
-    }
-
-    async function decodeAudio(url) {
-      const res = await fetch(url);
-      const buf = await res.arrayBuffer();
-      return head.audioCtx.decodeAudioData(buf);
-    }
-
-    async function speakResponse(data) {
-      const text = data.response || "";
-      if (!text) return;
-
-      // Show subtitle
-      subtitleBar.style.display = "block";
-      subtitleBar.textContent = text;
-
-      // Mood → avatar expression
-      const mood = data.mood || "neutral";
-      if (head.avatar) {
-        try { head.setMood(mood); } catch(_) {}
-      }
-
-      if (data.audio_url && data.words && data.words.length > 0) {
-        // Full lip-sync path: audio + word timings from edge-tts
-        try {
-          const audioBuf = await decodeAudio(BACKEND + data.audio_url);
-          await head.speakAudio({
-            audio: audioBuf,
-            words: data.words,
-            wtimes: data.wtimes,
-            wdurations: data.wdurations,
-          });
-        } catch (err) {
-          console.warn("speakAudio failed, falling back to speakText:", err);
-          head.speakText(text);
-        }
-      } else {
-        // Fallback: text-only (no TTS configured — silent with lip sync animation)
-        head.speakText(text);
-      }
-
-      subtitleBar.style.display = "none";
-    }
-
-    // ── Chat ─────────────────────────────────────
-    async function sendChat(message, username) {
-      if (isBusy || !message.trim()) return;
-      setBusy(true);
-      resetIdleTimer();
-      addMessage(message, "viewer", username);
-      chatInput.value = "";
-
-      try {
-        const res = await fetch(`${BACKEND}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, username }),
-        });
-        const data = await res.json();
-        if (data.response) {
-          addMessage(data.response, "aria", "Aria");
-          await speakResponse(data);
-        }
-      } catch (err) {
-        addMessage("(connection error)", "system");
-        console.error(err);
-      } finally {
-        setBusy(false);
-        resetIdleTimer();
-      }
-    }
-
-    // ── Idle monologue ────────────────────────────
-    async function doIdle() {
-      if (isBusy) { resetIdleTimer(); return; }
-      setBusy(true);
-      try {
-        const res = await fetch(`${BACKEND}/idle`);
-        const data = await res.json();
-        if (data.response) {
-          addMessage(data.response, "aria", "Aria");
-          await speakResponse(data);
-        }
-      } catch (_) {}
-      finally {
-        setBusy(false);
-        resetIdleTimer();
-      }
-    }
-
-    // ── Event listeners ───────────────────────────
-    sendBtn.addEventListener("click", () => {
-      // Resume AudioContext on first user interaction (Chrome autoplay policy)
-      if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
-      const msg = chatInput.value.trim();
-      const user = usernameInput.value.trim() || "viewer";
-      if (msg) sendChat(msg, user);
-    });
-
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendBtn.click();
-    });
-
-    // ── Init ──────────────────────────────────────
-    document.addEventListener("DOMContentLoaded", async () => {
-      // Check backend
-      try {
-        const health = await fetch(`${BACKEND}/health`);
-        const hdata = await health.json();
-        addMessage(`Backend: ${hdata.engine || "ok"}`, "system");
-      } catch (_) {
-        addMessage("Backend not reachable — start hermes_bridge.py", "system");
-      }
-
-      // Init TalkingHead (no TTS endpoint — we use our own audio)
-      head = new TalkingHead(avatarEl, {
+      head = new TalkingHead(nodeAvatar, {
+        ttsEndpoint: null, // We'll use speakAudio instead
         lipsyncModules: ["en"],
         cameraView: "upper",
+        cameraDistance: 0.4,
+        cameraX: 0,
+        cameraY: 0,
+        cameraRotateX: 0
       });
 
-      // Load avatar
       try {
-        loadingTxt.textContent = "Loading avatar…";
+        nodeLoading.textContent = "Loading avatar...";
+
+        // Use the bundled brunette avatar
         await head.showAvatar({
-          url: AVATAR_URL,
-          body: "F",
-          avatarMood: "happy",
-          lipsyncLang: "en",
+          url: './avatars/brunette.glb',
+          body: 'F',
+          avatarMood: 'happy',
+          lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) {
-            const pct = Math.round(ev.loaded / ev.total * 100);
-            loadingTxt.textContent = `Loading avatar… ${pct}%`;
+            let pct = Math.min(100, Math.round(ev.loaded / ev.total * 100));
+            nodeLoading.textContent = "Loading avatar " + pct + "%";
           }
         });
-        loadingEl.style.display = "none";
-        statusBadge.textContent = "● LIVE";
-        statusBadge.classList.add("live");
-        addMessage("Aria is live!", "system");
-        resetIdleTimer();
-      } catch (err) {
-        loadingTxt.textContent = "Failed to load avatar: " + err.message;
-        console.error(err);
+
+        nodeLoading.style.display = 'none';
+        addChatMessage('System', 'Avatar loaded! Type a message to chat.', '#888');
+        setStatus('Idle — waiting for chat');
+
+        // Start idle behavior + autonomous talking + Twitch feed polling
+        startIdleBehavior();
+        startIdleTalk();
+        startFeedPoller();
+
+      } catch (error) {
+        console.error(error);
+        nodeLoading.textContent = "Error: " + error.toString();
       }
 
-      // Pause when tab hidden
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") head.start();
-        else head.stop();
+      // ── Chat input ──
+      const chatInput = document.getElementById('chat-input');
+      const chatSend = document.getElementById('chat-send');
+
+      // Resume audio context on first real user interaction
+      async function resumeAudio() {
+        try {
+          if (head && head.audioCtx && head.audioCtx.state === 'suspended') {
+            await head.audioCtx.resume();
+            console.log('AudioContext resumed');
+          }
+        } catch(e) { console.log('Audio resume:', e); }
+      }
+
+      chatSend.addEventListener('click', async () => { await resumeAudio(); sendChat(); });
+      chatInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') { await resumeAudio(); sendChat(); }
       });
+
+      // Also resume on any click on the page
+      document.addEventListener('click', resumeAudio, { once: true });
     });
+
+    // ── Chat handling ──
+    async function sendChat() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      lastChatTime = Date.now();
+      feedSourceMessages.add(text); // mark so feed poller skips it
+      const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      addChatMessage('You', text, color);
+
+      // Get AI response from backend
+      setStatus('Thinking...');
+      try {
+        const resp = await fetch(agentApiUrl + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'viewer', message: text })
+        });
+        const data = await resp.json();
+        if (data.response) {
+          if (data.mood && head) {
+            try { head.setMood(data.mood); } catch(e) {}
+          }
+          await speakResponse(data.response, data.audio_url);
+        }
+      } catch (e) {
+        console.error('Backend unavailable, using local:', e);
+        await speakResponse(getLocalResponse(text), null);
+      }
+    }
+
+    // ── Local response generation (no backend needed) ──
+    function getLocalResponse(input) {
+      const lower = input.toLowerCase();
+      const responses = {
+        'hello': "Hey there! Welcome to the stream! So glad you stopped by!",
+        'hi': "Hi! Great to see you here! How's your day going?",
+        'how are you': "I'm doing great, thanks for asking! Just hanging out and chatting with everyone.",
+        'what are you doing': "Just vibing and chatting with my amazing audience! What about you?",
+        'bye': "Aww, leaving already? Come back soon! It was great chatting with you!",
+        'love': "That's so sweet! You're making me blush!",
+        'cute': "Oh stop it, you're too kind! But I appreciate the compliment!",
+      };
+
+      for (const [key, resp] of Object.entries(responses)) {
+        if (lower.includes(key)) return resp;
+      }
+
+      const generic = [
+        "That's really interesting! Tell me more about that!",
+        "Haha, you're funny! I love chatting with you all!",
+        "Ooh, great question! Let me think about that for a sec...",
+        "You know what, I totally agree with that!",
+        "That's a really cool thought! I hadn't considered that before.",
+        "Wow, that's awesome! Thanks for sharing!",
+      ];
+      return generic[Math.floor(Math.random() * generic.length)];
+    }
+
+    // ── Debug helper ──
+    function dbg(msg) {
+      const el = document.getElementById('debug');
+      if (el) {
+        el.textContent += msg + '\n';
+        el.scrollTop = el.scrollHeight;
+      }
+      console.log('[DBG]', msg);
+    }
+
+    // ── Speech queue — only one clip at a time ──
+    let speechQueue = [];
+    let isProcessingSpeech = false;
+
+    async function speakResponse(text, audioUrl) {
+      // Add to queue instead of playing immediately
+      speechQueue.push({ text, audioUrl });
+      processNextSpeech();
+    }
+
+    async function processNextSpeech() {
+      if (isProcessingSpeech || speechQueue.length === 0) return;
+
+      isProcessingSpeech = true;
+      isSpeaking = true;
+      const { text, audioUrl } = speechQueue.shift();
+
+      setStatus('Speaking...');
+      addChatMessage('Aria', text, '#ff69b4');
+
+      try {
+        if (audioUrl && head) {
+          // Resume audio context if suspended
+          if (head.audioCtx && head.audioCtx.state === 'suspended') {
+            await head.audioCtx.resume();
+          }
+
+          // Stop any currently playing speech first
+          try { head.stopSpeaking(); } catch(e) {}
+
+          // Fetch and decode audio
+          const response = await fetch(agentApiUrl + audioUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const audioBuffer = await head.audioCtx.decodeAudioData(arrayBuffer);
+
+          // Build word timings
+          const cleanText = text.replace(/[\u{10000}-\u{10FFFF}]/gu, '').replace(/\*/g, '').trim();
+          const words = cleanText.split(/\s+/).filter(w => w.length > 0);
+          const audioDurationMs = audioBuffer.duration * 1000;
+          const msPerWord = words.length > 0 ? audioDurationMs / words.length : 200;
+
+          const audioObj = {
+            audio: audioBuffer,
+            words: words,
+            wtimes: words.map((w, i) => i * msPerWord),
+            wdurations: words.map(() => Math.max(100, msPerWord * 0.9)),
+            markers: [],
+            mtimes: [],
+          };
+
+          head.speakAudio(audioObj, { lipsyncLang: 'en' });
+
+          // Wait for the audio to finish before processing next
+          await new Promise(resolve => setTimeout(resolve, audioDurationMs + 500));
+
+        }
+      } catch (e) {
+        console.error('Speech error:', e);
+        if (audioUrl) {
+          try {
+            const fallbackAudio = new Audio(agentApiUrl + audioUrl);
+            await fallbackAudio.play();
+            await new Promise(resolve => fallbackAudio.addEventListener('ended', resolve));
+          } catch(e2) {}
+        }
+      }
+
+      isProcessingSpeech = false;
+      isSpeaking = false;
+      setStatus('Idle — waiting for chat');
+
+      // Process next in queue if any
+      if (speechQueue.length > 0) {
+        processNextSpeech();
+      }
+    }
+
+    // ── Idle behavior ──
+    function startIdleBehavior() {
+      // Random expressions
+      setInterval(() => {
+        if (!head) return;
+        const moods = ['neutral', 'happy', 'hopeful', 'shy'];
+        const mood = moods[Math.floor(Math.random() * moods.length)];
+        try {
+          head.setMood(mood);
+        } catch (e) {}
+      }, 15000);
+
+      // Random gestures
+      setInterval(() => {
+        if (!head) return;
+        const gestures = [null, 'handup', 'side', 'shrug'];
+        const gesture = gestures[Math.floor(Math.random() * gestures.length)];
+        try {
+          if (gesture) {
+            head.playGesture(gesture, 2.0);
+          }
+        } catch (e) {}
+      }, 20000);
+
+      // Simulate viewer count changes
+      setInterval(() => {
+        const base = 847;
+        const delta = Math.floor(Math.random() * 200) - 50;
+        document.getElementById('viewer-count').textContent = (base + delta).toLocaleString() + ' viewers';
+      }, 30000);
+
+      // No fake chat — real viewers only
+    }
+
+    // ── UI helpers ──
+    function addChatMessage(user, text, color = '#fff') {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'chat-msg';
+      if (user === 'System') {
+        div.innerHTML = `<span class="chat-system">${text}</span>`;
+      } else {
+        div.innerHTML = `<span class="chat-user" style="color:${color}">${user}:</span>${text}`;
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    // ── Feed poller — picks up Twitch chat messages from backend ──
+    let lastFeedId = 0;
+    let feedSourceMessages = new Set(); // track messages we sent ourselves to avoid dupes
+
+    function startFeedPoller() {
+      setInterval(async () => {
+        try {
+          const resp = await fetch(agentApiUrl + '/feed?since=' + lastFeedId);
+          const data = await resp.json();
+
+          if (data.messages && data.messages.length > 0) {
+            for (const msg of data.messages) {
+              lastFeedId = Math.max(lastFeedId, msg.id);
+
+              // Skip messages we sent from this UI (they're already displayed)
+              if (feedSourceMessages.has(msg.message)) {
+                feedSourceMessages.delete(msg.message);
+                continue;
+              }
+
+              // Display the viewer's message in chat
+              const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+              const color = colors[msg.username.length % colors.length];
+              addChatMessage(msg.username, msg.message, color);
+
+              // Speak Aria's response with lip sync
+              if (msg.response) {
+                lastChatTime = Date.now();
+                if (msg.mood && head) {
+                  try { head.setMood(msg.mood); } catch(e) {}
+                }
+                await speakResponse(msg.response, msg.audio_url);
+              }
+            }
+          }
+
+          if (data.latest_id !== undefined) {
+            lastFeedId = Math.max(lastFeedId, data.latest_id);
+          }
+        } catch (e) {
+          // Backend might be down, ignore
+        }
+      }, 2000); // Poll every 2 seconds
+    }
+
+    // ── Idle talk — Aria speaks when chat is quiet ──
+    let lastChatTime = Date.now();
+    let isSpeaking = false;
+
+    function startIdleTalk() {
+      setInterval(async () => {
+        const silenceMs = Date.now() - lastChatTime;
+        // Only if chat quiet for 30+ seconds AND not speaking AND no queued speech
+        if (silenceMs > 30000 && !isSpeaking && !isProcessingSpeech && speechQueue.length === 0) {
+          try {
+            const resp = await fetch(agentApiUrl + '/idle');
+            const data = await resp.json();
+            if (data.response) {
+              lastChatTime = Date.now(); // Reset timer immediately to prevent double-fire
+              await speakResponse(data.response, data.audio_url);
+            }
+          } catch (e) {
+            console.error('Idle talk error:', e);
+          }
+        }
+      }, 20000); // Check every 20 seconds
+    }
+
+    // Track when user sends a message
+    const origSendChat = sendChat;
+
+    // Load voices
+    if (window.speechSynthesis) {
+      speechSynthesis.getVoices();
+      speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+    }
   </script>
 </head>
+
 <body>
-  <div id="main">
+  <div id="container">
+    <!-- Avatar panel -->
     <div id="avatar-panel">
-      <div id="avatar"></div>
-      <div id="status-badge">● OFFLINE</div>
-      <div id="subtitle-bar"></div>
-      <div id="loading-overlay">
-        <div class="spinner"></div>
-        <div id="loading-text">Initializing…</div>
+      <div id="topbar">
+        <div id="live-dot"></div>
+        <span id="live-text">LIVE</span>
+        <span id="streamer-name">Aria — Just Chatting</span>
+        <span id="viewer-count">847 viewers</span>
       </div>
+      <div id="avatar"></div>
+      <div id="debug"></div>
+      <div id="status">Loading...</div>
+      <div id="loading">Initializing...</div>
     </div>
 
+    <!-- Chat panel -->
     <div id="chat-panel">
-      <div id="chat-header">Live Chat</div>
+      <div id="chat-header">Stream Chat</div>
       <div id="chat-messages"></div>
-      <div id="input-row">
-        <input id="username-input" type="text" placeholder="name" value="viewer">
-        <input id="chat-input" type="text" placeholder="Say something…">
-        <button id="send-btn">Chat</button>
+      <div id="chat-input-area">
+        <input id="chat-input" type="text" placeholder="Send a message...">
+        <button id="chat-send">Chat</button>
       </div>
     </div>
   </div>

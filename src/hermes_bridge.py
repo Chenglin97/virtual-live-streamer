@@ -44,6 +44,13 @@ agent = AIAgent(
 conversation_history = []
 
 # ─────────────────────────────────────────────────────
+# Message feed — frontend polls this for new messages
+# ─────────────────────────────────────────────────────
+import time as _time
+message_feed = []  # list of {id, username, message, response, audio_url, mood, words, wtimes, wdurations, timestamp}
+feed_counter = 0
+
+# ─────────────────────────────────────────────────────
 # Memory: track what Aria has said to avoid repetition
 # ─────────────────────────────────────────────────────
 MEMORY_DIR = Path(__file__).parent.parent / "data" / "memory"
@@ -191,6 +198,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/idle":
             self._handle_idle()
 
+        elif self.path.startswith("/feed"):
+            self._handle_feed()
+
         elif self.path.startswith("/audio/"):
             self._serve_audio(self.path[7:])
 
@@ -246,7 +256,7 @@ class Handler(BaseHTTPRequestHandler):
         audio_filename, words, wtimes, wdurations = generate_tts(response_text)
         mood = detect_mood(response_text)
 
-        self._json_response({
+        resp_data = {
             "response": response_text,
             "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
             "mood": mood,
@@ -254,7 +264,23 @@ class Handler(BaseHTTPRequestHandler):
             "words": words,
             "wtimes": wtimes,
             "wdurations": wdurations,
+        }
+
+        # Add to message feed so frontend can pick it up
+        global feed_counter
+        feed_counter += 1
+        message_feed.append({
+            "id": feed_counter,
+            "username": username,
+            "message": message,
+            "timestamp": _time.time(),
+            **resp_data,
         })
+        # Keep last 50 messages
+        while len(message_feed) > 50:
+            message_feed.pop(0)
+
+        self._json_response(resp_data)
 
     def _handle_idle(self):
         global conversation_history
@@ -295,6 +321,22 @@ class Handler(BaseHTTPRequestHandler):
             "wtimes": wtimes,
             "wdurations": wdurations,
         })
+
+    def _handle_feed(self):
+        """Return new messages since a given ID. Frontend polls this."""
+        # Parse ?since=ID from query string
+        since_id = 0
+        if "?" in self.path:
+            query = self.path.split("?", 1)[1]
+            for param in query.split("&"):
+                if param.startswith("since="):
+                    try:
+                        since_id = int(param.split("=")[1])
+                    except ValueError:
+                        pass
+
+        new_messages = [m for m in message_feed if m["id"] > since_id]
+        self._json_response({"messages": new_messages, "latest_id": feed_counter})
 
     def _serve_audio(self, filename):
         filepath = AUDIO_DIR / filename
