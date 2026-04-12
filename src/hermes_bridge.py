@@ -13,11 +13,16 @@ import re
 import sys
 from pathlib import Path
 
-# Add Hermes to path
-HERMES_DIR = Path.home() / ".hermes" / "hermes-agent"
-sys.path.insert(0, str(HERMES_DIR))
+# Ensure hermes-agent's own modules take priority over this project's src/utils
+HERMES_DIR = Path(__file__).parent.parent / "hermes-agent"
+if str(HERMES_DIR) not in sys.path:
+    sys.path.insert(0, str(HERMES_DIR))
+# Remove src/ from sys.path to avoid shadowing hermes-agent's utils
+_src = str(Path(__file__).parent)
+while _src in sys.path:
+    sys.path.remove(_src)
 
-# Load Hermes env
+# Load Hermes env (silently skips if ~/.hermes/.env doesn't exist)
 from hermes_cli.env_loader import load_hermes_dotenv
 from hermes_constants import get_hermes_home
 load_hermes_dotenv(hermes_home=get_hermes_home())
@@ -104,26 +109,42 @@ Rules:
 - Never break character"""
 
 
-def generate_tts(text: str) -> str | None:
-    """Generate TTS audio, return filename."""
+def generate_tts(text: str) -> tuple[str | None, list, list, list]:
+    """Generate TTS audio and return (filename, words, wtimes_ms, wdurations_ms)."""
     try:
         import edge_tts
     except ImportError:
-        return None
+        return None, [], [], []
 
     clean = re.sub(r'[\U00010000-\U0010ffff]', '', text.replace("*", "")).strip()
     if not clean:
-        return None
+        return None, [], [], []
 
     text_hash = hashlib.md5(clean.encode()).hexdigest()[:12]
     filename = f"tts_{text_hash}.mp3"
     filepath = AUDIO_DIR / filename
+    timing_path = AUDIO_DIR / f"tts_{text_hash}.json"
 
     if not filepath.exists():
-        communicate = edge_tts.Communicate(text=clean, voice="en-US-JennyNeural", rate="+5%")
-        asyncio.run(communicate.save(str(filepath)))
+        async def _generate():
+            communicate = edge_tts.Communicate(text=clean, voice="en-US-JennyNeural", rate="+5%", boundary="WordBoundary")
+            audio_bytes = b""
+            words, wtimes, wdurations = [], [], []
+            async for msg in communicate.stream():
+                if msg["type"] == "audio":
+                    audio_bytes += msg["data"]
+                elif msg["type"] == "WordBoundary":
+                    words.append(msg["text"])
+                    wtimes.append(msg["offset"] / 10000)       # 100-ns ticks → ms
+                    wdurations.append(msg["duration"] / 10000)
+            filepath.write_bytes(audio_bytes)
+            timing_path.write_text(json.dumps({"words": words, "wtimes": wtimes, "wdurations": wdurations}))
+        asyncio.run(_generate())
 
-    return filename
+    if timing_path.exists():
+        t = json.loads(timing_path.read_text())
+        return filename, t["words"], t["wtimes"], t["wdurations"]
+    return filename, [], [], []
 
 
 def detect_mood(text: str) -> str:
@@ -213,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Hermes error: {e}")
             response_text = "Hmm, give me a sec... my brain glitched!"
 
-        audio_filename = generate_tts(response_text)
+        audio_filename, words, wtimes, wdurations = generate_tts(response_text)
         mood = detect_mood(response_text)
 
         self._json_response({
@@ -221,6 +242,9 @@ class Handler(BaseHTTPRequestHandler):
             "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
             "mood": mood,
             "username": username,
+            "words": words,
+            "wtimes": wtimes,
+            "wdurations": wdurations,
         })
 
     def _handle_idle(self):
@@ -252,12 +276,15 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Hermes idle error: {e}")
             response_text = "Hmm, it's quiet in here... anyone out there?"
 
-        audio_filename = generate_tts(response_text)
+        audio_filename, words, wtimes, wdurations = generate_tts(response_text)
 
         self._json_response({
             "response": response_text,
             "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
             "mood": "neutral",
+            "words": words,
+            "wtimes": wtimes,
+            "wdurations": wdurations,
         })
 
     def _serve_audio(self, filename):

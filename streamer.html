@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Aria — Virtual Streamer</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Avatar panel ── */
+    #avatar-panel {
+      flex: 1;
+      position: relative;
+      background: #111;
+    }
+
+    #avatar {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #status-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid #ff4444;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #ff4444;
+    }
+    #status-badge.live { color: #44ff88; border-color: #44ff88; }
+
+    #subtitle-bar {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 90%;
+      background: rgba(0,0,0,0.72);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 15px;
+      text-align: center;
+      color: #fff;
+      display: none;
+    }
+
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: #0d0d0d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 16px;
+      color: #aaa;
+    }
+    #loading-overlay .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #333;
+      border-top-color: #88ccff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Chat sidebar ── */
+    #chat-panel {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      background: #141414;
+      border-left: 1px solid #222;
+    }
+
+    #chat-header {
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #88ccff;
+      border-bottom: 1px solid #222;
+      background: #181818;
+    }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+
+    .msg {
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    .msg.viewer {
+      background: #1e2a3a;
+      align-self: flex-end;
+      color: #cce4ff;
+    }
+    .msg.aria {
+      background: #1e2e1e;
+      align-self: flex-start;
+      color: #aaffaa;
+    }
+    .msg.system {
+      background: transparent;
+      color: #555;
+      font-size: 12px;
+      text-align: center;
+      align-self: center;
+    }
+    .msg .username {
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .msg.viewer .username { color: #88ccff; }
+    .msg.aria .username { color: #88ff88; }
+
+    /* ── Input row ── */
+    #input-row {
+      display: flex;
+      gap: 6px;
+      padding: 10px;
+      border-top: 1px solid #222;
+      background: #181818;
+    }
+
+    #username-input {
+      width: 80px;
+      padding: 7px 8px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #222;
+      color: #ccc;
+      font-size: 13px;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #222;
+      color: #eee;
+      font-size: 13px;
+    }
+
+    #chat-input:focus, #username-input:focus {
+      outline: none;
+      border-color: #88ccff;
+    }
+
+    #send-btn {
+      padding: 7px 14px;
+      background: #2255aa;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #send-btn:hover { background: #3366cc; }
+    #send-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+  </style>
+
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.7/modules/talkinghead.mjs"
+  }}
+  </script>
+
+  <script type="module">
+    import { TalkingHead } from "talkinghead";
+
+    const BACKEND = "http://localhost:5001";
+    const AVATAR_URL = "./avatars/brunette.glb";
+    const IDLE_INTERVAL_MS = 30000;
+
+    let head;
+    let isBusy = false;
+    let idleTimer = null;
+
+    // ── DOM refs ──────────────────────────────────
+    const avatarEl    = document.getElementById("avatar");
+    const loadingEl   = document.getElementById("loading-overlay");
+    const loadingTxt  = document.getElementById("loading-text");
+    const statusBadge = document.getElementById("status-badge");
+    const subtitleBar = document.getElementById("subtitle-bar");
+    const chatMsgs    = document.getElementById("chat-messages");
+    const chatInput   = document.getElementById("chat-input");
+    const usernameInput = document.getElementById("username-input");
+    const sendBtn     = document.getElementById("send-btn");
+
+    // ── Helpers ───────────────────────────────────
+    function addMessage(text, type, username = "") {
+      const div = document.createElement("div");
+      div.className = `msg ${type}`;
+      if (username) {
+        const span = document.createElement("span");
+        span.className = "username";
+        span.textContent = username + ":";
+        div.appendChild(span);
+      }
+      div.appendChild(document.createTextNode(text));
+      chatMsgs.appendChild(div);
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }
+
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(doIdle, IDLE_INTERVAL_MS);
+    }
+
+    function setBusy(busy) {
+      isBusy = busy;
+      sendBtn.disabled = busy;
+    }
+
+    async function decodeAudio(url) {
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      return head.audioCtx.decodeAudioData(buf);
+    }
+
+    async function speakResponse(data) {
+      const text = data.response || "";
+      if (!text) return;
+
+      // Show subtitle
+      subtitleBar.style.display = "block";
+      subtitleBar.textContent = text;
+
+      // Mood → avatar expression
+      const mood = data.mood || "neutral";
+      if (head.avatar) {
+        try { head.setMood(mood); } catch(_) {}
+      }
+
+      if (data.audio_url && data.words && data.words.length > 0) {
+        // Full lip-sync path: audio + word timings from edge-tts
+        try {
+          const audioBuf = await decodeAudio(BACKEND + data.audio_url);
+          await head.speakAudio({
+            audio: audioBuf,
+            words: data.words,
+            wtimes: data.wtimes,
+            wdurations: data.wdurations,
+          });
+        } catch (err) {
+          console.warn("speakAudio failed, falling back to speakText:", err);
+          head.speakText(text);
+        }
+      } else {
+        // Fallback: text-only (no TTS configured — silent with lip sync animation)
+        head.speakText(text);
+      }
+
+      subtitleBar.style.display = "none";
+    }
+
+    // ── Chat ─────────────────────────────────────
+    async function sendChat(message, username) {
+      if (isBusy || !message.trim()) return;
+      setBusy(true);
+      resetIdleTimer();
+      addMessage(message, "viewer", username);
+      chatInput.value = "";
+
+      try {
+        const res = await fetch(`${BACKEND}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, username }),
+        });
+        const data = await res.json();
+        if (data.response) {
+          addMessage(data.response, "aria", "Aria");
+          await speakResponse(data);
+        }
+      } catch (err) {
+        addMessage("(connection error)", "system");
+        console.error(err);
+      } finally {
+        setBusy(false);
+        resetIdleTimer();
+      }
+    }
+
+    // ── Idle monologue ────────────────────────────
+    async function doIdle() {
+      if (isBusy) { resetIdleTimer(); return; }
+      setBusy(true);
+      try {
+        const res = await fetch(`${BACKEND}/idle`);
+        const data = await res.json();
+        if (data.response) {
+          addMessage(data.response, "aria", "Aria");
+          await speakResponse(data);
+        }
+      } catch (_) {}
+      finally {
+        setBusy(false);
+        resetIdleTimer();
+      }
+    }
+
+    // ── Event listeners ───────────────────────────
+    sendBtn.addEventListener("click", () => {
+      // Resume AudioContext on first user interaction (Chrome autoplay policy)
+      if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
+      const msg = chatInput.value.trim();
+      const user = usernameInput.value.trim() || "viewer";
+      if (msg) sendChat(msg, user);
+    });
+
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendBtn.click();
+    });
+
+    // ── Init ──────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Check backend
+      try {
+        const health = await fetch(`${BACKEND}/health`);
+        const hdata = await health.json();
+        addMessage(`Backend: ${hdata.engine || "ok"}`, "system");
+      } catch (_) {
+        addMessage("Backend not reachable — start hermes_bridge.py", "system");
+      }
+
+      // Init TalkingHead (no TTS endpoint — we use our own audio)
+      head = new TalkingHead(avatarEl, {
+        lipsyncModules: ["en"],
+        cameraView: "upper",
+      });
+
+      // Load avatar
+      try {
+        loadingTxt.textContent = "Loading avatar…";
+        await head.showAvatar({
+          url: AVATAR_URL,
+          body: "F",
+          avatarMood: "happy",
+          lipsyncLang: "en",
+        }, (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.round(ev.loaded / ev.total * 100);
+            loadingTxt.textContent = `Loading avatar… ${pct}%`;
+          }
+        });
+        loadingEl.style.display = "none";
+        statusBadge.textContent = "● LIVE";
+        statusBadge.classList.add("live");
+        addMessage("Aria is live!", "system");
+        resetIdleTimer();
+      } catch (err) {
+        loadingTxt.textContent = "Failed to load avatar: " + err.message;
+        console.error(err);
+      }
+
+      // Pause when tab hidden
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") head.start();
+        else head.stop();
+      });
+    });
+  </script>
+</head>
+<body>
+  <div id="main">
+    <div id="avatar-panel">
+      <div id="avatar"></div>
+      <div id="status-badge">● OFFLINE</div>
+      <div id="subtitle-bar"></div>
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">Initializing…</div>
+      </div>
+    </div>
+
+    <div id="chat-panel">
+      <div id="chat-header">Live Chat</div>
+      <div id="chat-messages"></div>
+      <div id="input-row">
+        <input id="username-input" type="text" placeholder="name" value="viewer">
+        <input id="chat-input" type="text" placeholder="Say something…">
+        <button id="send-btn">Chat</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
