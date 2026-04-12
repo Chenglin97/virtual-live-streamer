@@ -147,6 +147,14 @@ def generate_tts(text: str) -> tuple[str | None, list, list, list]:
     return filename, [], [], []
 
 
+def clean_response(text: str) -> str:
+    """Strip MEDIA: paths and other artifacts from Hermes responses."""
+    text = re.sub(r'MEDIA:\S+', '', text)
+    text = re.sub(r'/Users/\S+', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
 def detect_mood(text: str) -> str:
     lower = text.lower()
     if any(w in lower for w in ["blush", "sweet", "flatter", "aww"]):
@@ -223,6 +231,7 @@ class Handler(BaseHTTPRequestHandler):
             response_text = result.get("final_response") or result.get("response") or ""
             if response_text == "None":
                 response_text = ""
+            response_text = clean_response(response_text)
             conversation_history = result.get("conversation_history", conversation_history)
             if len(conversation_history) > 50:
                 conversation_history = conversation_history[-40:]

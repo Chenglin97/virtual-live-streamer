@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 import httpx
-import twitchio
 
 # ─────────────────────────────────────────────────────
 # Configuration
@@ -61,14 +60,6 @@ class AriaTwitchBridge:
 
     async def start(self):
         """Connect to Twitch and start listening."""
-        # Create twitchio Client
-        self.client = twitchio.Client.from_client_credentials(
-            client_id=os.environ.get("TWITCH_CLIENT_ID", "gp762nuuoqcoxypju8c569th9wz7q5"),
-            client_secret="",  # Not needed for chat
-        )
-
-        # For chat, we use a simpler approach with IRC directly
-        # twitchio v3 changed significantly — let's use raw IRC
         print(f"Connecting to Twitch IRC #{self.channel_name}...")
         await self._run_irc()
 
@@ -199,9 +190,17 @@ class AriaTwitchBridge:
 
     def _clean_for_twitch(self, text: str) -> str:
         """Clean text for Twitch chat (500 char limit)."""
+        # Remove MEDIA: file paths that Hermes injects
+        text = re.sub(r'MEDIA:\S+', '', text)
+        # Remove markdown
         text = text.replace("*", "").replace("_", "").replace("~", "")
+        # Remove emoji
         text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+        # Remove file paths that might leak
+        text = re.sub(r'/Users/\S+', '', text)
+        # Collapse whitespace
         text = re.sub(r'\s+', ' ', text).strip()
+        # Twitch limit is 500 chars
         if len(text) > 490:
             text = text[:487] + "..."
         return text
