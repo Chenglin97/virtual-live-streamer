@@ -38,6 +38,57 @@ agent = AIAgent(
 )
 conversation_history = []
 
+# ─────────────────────────────────────────────────────
+# Memory: track what Aria has said to avoid repetition
+# ─────────────────────────────────────────────────────
+MEMORY_DIR = Path(__file__).parent.parent / "data" / "memory"
+MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+MEMORY_FILE = MEMORY_DIR / "aria_memory.json"
+
+def load_memory() -> dict:
+    """Load persistent memory from disk."""
+    if MEMORY_FILE.exists():
+        return json.loads(MEMORY_FILE.read_text())
+    return {"recent_idle_lines": [], "viewer_facts": {}, "topics_covered": []}
+
+def save_memory(memory: dict):
+    """Save memory to disk."""
+    MEMORY_FILE.write_text(json.dumps(memory, indent=2, ensure_ascii=False))
+
+def add_to_memory(response: str, username: str = None, is_idle: bool = False):
+    """Track what Aria said to avoid repetition."""
+    memory = load_memory()
+
+    # Track recent idle lines (keep last 30)
+    if is_idle:
+        memory["recent_idle_lines"].append(response[:100])
+        memory["recent_idle_lines"] = memory["recent_idle_lines"][-30:]
+
+    # Track topics/themes she's talked about
+    topics = memory.get("topics_covered", [])
+    topics.append(response[:80])
+    memory["topics_covered"] = topics[-50:]  # keep last 50
+
+    save_memory(memory)
+
+def get_memory_context() -> str:
+    """Build a memory context string to inject into the prompt."""
+    memory = load_memory()
+    parts = []
+
+    # Recent idle lines to avoid
+    if memory.get("recent_idle_lines"):
+        recent = memory["recent_idle_lines"][-10:]
+        parts.append("THINGS YOU ALREADY SAID RECENTLY (DO NOT REPEAT THESE):\n- " + "\n- ".join(recent))
+
+    # Viewer facts
+    if memory.get("viewer_facts"):
+        facts = [f"{k}: {v}" for k, v in list(memory["viewer_facts"].items())[:10]]
+        parts.append("VIEWER FACTS YOU REMEMBER:\n- " + "\n- ".join(facts))
+
+    return "\n\n".join(parts)
+
+
 PERSONA = """You are Aria, a 22-year-old virtual live streamer. You stream 24/7 and interact with your audience in real-time.
 
 Personality: Warm, cheerful, playful, a little nerdy. You love gaming, anime, music, and late-night deep conversations. You're genuinely curious about your viewers and remember details they share. Casual language, occasional internet slang.
@@ -48,6 +99,8 @@ Rules:
 - Be enthusiastic but natural
 - React genuinely to what viewers say
 - Reference streaming culture naturally
+- NEVER repeat something you already said — always come up with fresh things to say
+- If a viewer tells you something about themselves, remember it and reference it later
 - Never break character"""
 
 
@@ -134,10 +187,16 @@ class Handler(BaseHTTPRequestHandler):
 
         user_msg = f"[Live chat from {username}]: {message}"
 
+        # Build system message with memory context
+        memory_context = get_memory_context()
+        system_msg = PERSONA
+        if memory_context:
+            system_msg += "\n\n" + memory_context
+
         try:
             result = agent.run_conversation(
                 user_message=user_msg,
-                system_message=PERSONA,
+                system_message=system_msg,
                 conversation_history=conversation_history,
             )
             response_text = result.get("final_response") or result.get("response") or ""
@@ -146,6 +205,10 @@ class Handler(BaseHTTPRequestHandler):
             conversation_history = result.get("conversation_history", conversation_history)
             if len(conversation_history) > 50:
                 conversation_history = conversation_history[-40:]
+
+            # Save to memory
+            if response_text:
+                add_to_memory(response_text, username=username)
         except Exception as e:
             print(f"Hermes error: {e}")
             response_text = "Hmm, give me a sec... my brain glitched!"
@@ -163,10 +226,16 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_idle(self):
         global conversation_history
 
+        # Build system message with memory to prevent repetition
+        memory_context = get_memory_context()
+        system_msg = PERSONA
+        if memory_context:
+            system_msg += "\n\n" + memory_context
+
         try:
             result = agent.run_conversation(
-                user_message="[System: Chat is quiet. Say something entertaining — a thought, fun question, or anecdote. 1-2 sentences max.]",
-                system_message=PERSONA,
+                user_message="[System: Chat has been quiet. Say ONE fresh thing you haven't said before — a new random thought, fun question, hot take, story, or observation. Must be completely different from anything in your recent history. 1-2 sentences max.]",
+                system_message=system_msg,
                 conversation_history=conversation_history,
             )
             response_text = result.get("final_response") or result.get("response") or ""
@@ -175,6 +244,10 @@ class Handler(BaseHTTPRequestHandler):
             conversation_history = result.get("conversation_history", conversation_history)
             if len(conversation_history) > 50:
                 conversation_history = conversation_history[-40:]
+
+            # Save to memory as idle line
+            if response_text:
+                add_to_memory(response_text, is_idle=True)
         except Exception as e:
             print(f"Hermes idle error: {e}")
             response_text = "Hmm, it's quiet in here... anyone out there?"
