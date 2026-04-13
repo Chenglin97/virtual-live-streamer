@@ -144,36 +144,79 @@ class SpeechPregenQueue:
             return len(self.queue)
 
     def _fill_loop(self):
-        """Background loop: keep queue full with continuous narrative."""
+        """Background loop: keep queue full from researched topics or continuation."""
         while self._running:
             with self.lock:
                 current_size = len(self.queue)
 
             if current_size < self.queue_size:
-                # Build context of what was said so far
-                recent_context = ""
-                if self.recent_topics:
-                    recent_context = "\n\nWhat you've said so far (CONTINUE from here, don't repeat):\n"
-                    recent_context += "\n".join(f"- {t}" for t in self.recent_topics[-5:])
+                # Try to get a researched topic first
+                topic = None
+                try:
+                    from research_agent import pop_topic, queue_size as rq_size
+                    topic = pop_topic()
+                    if topic:
+                        print(f"[PregenQueue] Speaking about: {topic.get('topic', '?')}")
+                except ImportError:
+                    pass
 
-                prompt = (
-                    f"[System: You are live streaming and talking continuously. "
-                    f"Continue your monologue naturally — build on what you just said, "
-                    f"go deeper on the topic, share a related thought, tell the next part of the story, "
-                    f"or smoothly transition to a connected idea. "
-                    f"Keep it flowing like a natural stream of consciousness. "
-                    f"2-3 sentences. Be warm, expressive, engaging — like you're talking to a friend.]"
-                    f"{recent_context}"
-                )
+                if topic:
+                    # Generate speech about the researched topic
+                    talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
+                    recent_said = "\n".join(f"- {t}" for t in self.recent_topics[-5:])
 
-                result = generate_gpt_audio(prompt, system_prompt=self.persona)
-                if result:
-                    with self.lock:
-                        self.queue.append(result)
-                    self.recent_topics.append(result["response"][:100])
-                    if len(self.recent_topics) > 30:
-                        self.recent_topics = self.recent_topics[-20:]
-                    print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
+                    prompt = (
+                        f"[You're live streaming about AI news. Present this topic to your audience:]\n\n"
+                        f"TOPIC: {topic.get('topic', '')}\n"
+                        f"SUMMARY: {topic.get('summary', '')}\n"
+                        f"WHY IT MATTERS: {topic.get('why_interesting', '')}\n"
+                        f"TALKING POINTS:\n{talking_points}\n\n"
+                        f"[Explain this excitedly like you just discovered it. "
+                        f"Break it down so anyone can understand. "
+                        f"2-3 sentences per segment. Be enthusiastic and educational. "
+                        f"Use analogies if helpful.]"
+                    )
+                    if recent_said:
+                        prompt += f"\n\nYou already said (transition smoothly, don't repeat):\n{recent_said}"
+
+                    # Generate multiple segments for this topic
+                    for segment in range(3):
+                        result = generate_gpt_audio(prompt if segment == 0 else
+                            f"[Continue explaining the topic: {topic.get('topic', '')}. "
+                            f"Go deeper, share your opinion, or connect it to something relatable. "
+                            f"2-3 sentences. Keep the energy up!]\n\nYou just said: {self.recent_topics[-1] if self.recent_topics else ''}",
+                            system_prompt=self.persona)
+                        if result:
+                            with self.lock:
+                                self.queue.append(result)
+                            self.recent_topics.append(result["response"][:100])
+                            print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
+                        if not self._running:
+                            return
+
+                else:
+                    # No researched topic — continue natural monologue
+                    recent_context = ""
+                    if self.recent_topics:
+                        recent_context = "\n\nWhat you've said so far (CONTINUE naturally):\n"
+                        recent_context += "\n".join(f"- {t}" for t in self.recent_topics[-5:])
+
+                    prompt = (
+                        f"[You are live streaming about AI. Continue your monologue — "
+                        f"share a thought about AI, teach a concept, give a hot take, "
+                        f"or tell a relatable story about tech. "
+                        f"2-3 sentences. Be warm and educational.]"
+                        f"{recent_context}"
+                    )
+
+                    result = generate_gpt_audio(prompt, system_prompt=self.persona)
+                    if result:
+                        with self.lock:
+                            self.queue.append(result)
+                        self.recent_topics.append(result["response"][:100])
+                        if len(self.recent_topics) > 30:
+                            self.recent_topics = self.recent_topics[-20:]
+                        print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
 
             # Wait before checking again
             time.sleep(2 if current_size < self.queue_size else 5)

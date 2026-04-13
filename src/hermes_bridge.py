@@ -49,7 +49,9 @@ conversation_history = []
 # Add src/ back to path temporarily for speech_queue import
 sys.path.insert(0, str(Path(__file__).parent))
 from speech_queue import generate_gpt_audio, SpeechPregenQueue
-sys.path.remove(str(Path(__file__).parent))
+from research_agent import ResearchAgent
+if str(Path(__file__).parent) in sys.path:
+    sys.path.remove(str(Path(__file__).parent))
 
 USE_GPT_AUDIO = True  # Use GPT-4o for voice (set False to use Edge-TTS)
 idle_queue = None  # Initialized at startup
@@ -480,10 +482,15 @@ if __name__ == "__main__":
     if USE_GPT_AUDIO:
         idle_queue.start()
 
+    # Start research sub-agent (finds AI news in background)
+    researcher = ResearchAgent(research_interval=300)  # research every 5 min
+    researcher.start()
+
     server = HTTPServer(("0.0.0.0", port), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down...")
         idle_queue.stop()
+        researcher.stop()
         server.shutdown()
