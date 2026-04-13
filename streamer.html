@@ -735,47 +735,63 @@
     });
 
     // ── Speech queue — plays items one at a time ──
-    let speechQueue = [];      // [{data, type}]  type: "chat" | "idle" | "feed"
+    let speechQueue = [];
     let isPlaying = false;
+    const seenResponses = new Set();  // dedupe by response text
 
     function enqueueSpeech(data, type = "idle", viewerMsg = null, viewerName = null) {
+      // Dedupe — skip if we've already queued/spoken this exact response
+      const key = (data?.response || "") + "|" + (data?.audio_url || "");
+      if (seenResponses.has(key)) {
+        console.log("Skipping duplicate:", key.slice(0, 50));
+        return;
+      }
+      seenResponses.add(key);
+      // Keep dedupe set bounded
+      if (seenResponses.size > 50) {
+        const first = seenResponses.values().next().value;
+        seenResponses.delete(first);
+      }
+
       const item = { data, type, viewerMsg, viewerName };
       if (type === "chat" || type === "feed") {
-        // Chat messages go to FRONT of queue (after currently playing)
         speechQueue.unshift(item);
       } else {
-        // Idle/monologue appended to back
         speechQueue.push(item);
       }
-      if (!isPlaying) playNext();
+
+      // Start processing if not already
+      if (!isPlaying) {
+        isPlaying = true;  // set synchronously to prevent race
+        processQueue();
+      }
     }
 
-    async function playNext() {
-      if (speechQueue.length === 0) {
+    async function processQueue() {
+      try {
+        while (speechQueue.length > 0) {
+          const item = speechQueue.shift();
+          isBusy = true;
+
+          if (item.viewerMsg && item.viewerName) {
+            addMessage(item.viewerMsg, "viewer", item.viewerName);
+          }
+
+          if (item.data?.response) {
+            addMessage(item.data.response, "aria", "Aria", true);
+            if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
+            try {
+              await speakResponse(item.data);
+            } catch (e) {
+              console.error("Speech error:", e);
+            }
+          }
+        }
+      } finally {
         isPlaying = false;
         isBusy = false;
         resetIdleTimer();
-        return;
       }
-
-      isPlaying = true;
-      isBusy = true;
-      const item = speechQueue.shift();
-
-      // Show viewer message if it's a chat response
-      if (item.viewerMsg && item.viewerName) {
-        addMessage(item.viewerMsg, "viewer", item.viewerName);
-      }
-
-      // Show and speak Aria's response
-      if (item.data?.response) {
-        addMessage(item.data.response, "aria", "Aria", true);
-        if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
-        await speakResponse(item.data);
-      }
-
-      // Play next item
-      playNext();
     }
 
     // ── Send ──────────────────────────────────────
