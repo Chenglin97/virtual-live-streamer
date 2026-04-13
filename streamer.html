@@ -163,6 +163,52 @@
       z-index: 2;
     }
 
+    /* ── Now talking banner ──────────────────────── */
+    #now-talking {
+      position: absolute; top: 16px; left: 16px;
+      background: linear-gradient(135deg, rgba(124,110,245,0.9), rgba(86,207,178,0.85));
+      color: white; padding: 8px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 20px rgba(124,110,245,0.4);
+      backdrop-filter: blur(10px);
+      z-index: 5;
+      max-width: 60%;
+      display: none;
+      animation: slideIn 0.4s ease-out;
+    }
+    #now-talking::before { content: "💬 "; }
+    @keyframes slideIn { from { opacity:0; transform:translateY(-10px) } to { opacity:1; transform:translateY(0) } }
+
+    /* ── Floating reactions ──────────────────────── */
+    .reaction {
+      position: absolute; pointer-events: none; z-index: 6;
+      font-size: 28px; opacity: 1;
+      animation: floatUp 3s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) scale(0.5); opacity: 0; }
+      15% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+      100% { transform: translateY(-300px) scale(0.8) rotate(20deg); opacity: 0; }
+    }
+
+    /* ── Stream stats overlay ─────────────────────── */
+    #stream-stats {
+      position: absolute; bottom: 80px; left: 16px;
+      display: flex; gap: 8px; flex-direction: column;
+      z-index: 5;
+    }
+    .stat-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(10,10,15,0.7); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 5px 10px; border-radius: 14px;
+      font-size: 11px; color: var(--text-muted);
+      font-family: var(--mono, monospace);
+    }
+    .stat-pill .label { color: var(--text-muted); }
+    .stat-pill .value { color: #fff; font-weight: 600; }
+    .stat-pill .dot { width:6px; height:6px; border-radius:50%; background: var(--live, #22c55e); }
+
     /* ── Subtitle ───────────────────────────────── */
     #subtitle-bar {
       position: absolute;
@@ -651,10 +697,12 @@
       }
     }
 
-    // ── Idle — fetch and append to back of speech queue ──
+    // ── Idle — actively keeps the speech queue full ──
+    let _idleFetching = false;
     async function doIdle() {
       // Don't fetch more if queue already has plenty
-      if (speechQueue.length >= 5) { resetIdleTimer(); return; }
+      if (speechQueue.length >= 3 || _idleFetching) return;
+      _idleFetching = true;
       try {
         const res = await fetch(`${BACKEND}/idle`);
         const data = await res.json();
@@ -662,8 +710,14 @@
           enqueueSpeech(data, "idle");
         }
       } catch (_) {}
-      resetIdleTimer();
+      _idleFetching = false;
     }
+
+    // Run continuously — every 1s check if queue needs more
+    setInterval(() => {
+      // Pause if backend says it's not active (saves tokens)
+      if (speechQueue.length < 3) doIdle();
+    }, 1000);
 
     // ── Twitch feed poller — picks up messages from Twitch chat ──
     let lastFeedId = 0;
@@ -693,6 +747,9 @@
 
             // Insert Twitch chat response at front of queue
             enqueueSpeech(msg, "feed", msg.message, msg.username);
+            // Floating reaction emoji
+            const emojis = ["💜", "✨", "🔥", "👀", "💫", "🌟"];
+            spawnReaction(emojis[Math.floor(Math.random() * emojis.length)], msg.username);
           }
 
           if (data.latest_id !== undefined) {
@@ -751,14 +808,24 @@
         while (speechQueue.length > 0) {
           const item = speechQueue.shift();
           isBusy = true;
+          updateStats();
 
           if (item.viewerMsg && item.viewerName) {
             addMessage(item.viewerMsg, "viewer", item.viewerName);
+            spawnReaction("💬", item.viewerName);
           }
 
           if (item.data?.response) {
             addMessage(item.data.response, "aria", "Aria", true);
             if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
+
+            // Show "now talking about" banner — first sentence as topic
+            showNowTalking(item.data.response);
+
+            // Increment segment counter
+            window._segmentCount = (window._segmentCount || 0) + 1;
+            updateStats();
+
             try {
               await speakResponse(item.data);
             } catch (e) {
@@ -766,12 +833,59 @@
             }
           }
         }
+        hideNowTalking();
       } finally {
         isPlaying = false;
         isBusy = false;
         resetIdleTimer();
+        updateStats();
       }
     }
+
+    // ── UI: Now talking banner ─────────────────────
+    function showNowTalking(text) {
+      const banner = document.getElementById("now-talking");
+      if (!banner) return;
+      // Take first ~60 chars as the topic preview
+      const preview = text.length > 60 ? text.slice(0, 60).split(/[.!?]/)[0] + "..." : text;
+      banner.textContent = preview;
+      banner.style.display = "block";
+    }
+    function hideNowTalking() {
+      const banner = document.getElementById("now-talking");
+      if (banner) banner.style.display = "none";
+    }
+
+    // ── UI: Floating reactions ─────────────────────
+    function spawnReaction(emoji, label) {
+      const panel = document.getElementById("avatar-panel");
+      if (!panel) return;
+      const el = document.createElement("div");
+      el.className = "reaction";
+      el.textContent = emoji;
+      const x = 20 + Math.random() * (panel.offsetWidth - 100);
+      const y = panel.offsetHeight - 80 - Math.random() * 80;
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      panel.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    // ── UI: Stats ──────────────────────────────────
+    const _streamStart = Date.now();
+    function updateStats() {
+      const upEl = document.getElementById("stat-uptime");
+      const segEl = document.getElementById("stat-segments");
+      const qEl = document.getElementById("stat-queue");
+      if (upEl) {
+        const s = Math.floor((Date.now() - _streamStart) / 1000);
+        const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+        upEl.textContent = `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+      }
+      if (segEl) segEl.textContent = window._segmentCount || 0;
+      if (qEl) qEl.textContent = speechQueue.length;
+    }
+    setInterval(updateStats, 1000);
 
     // ── Send ──────────────────────────────────────
     function handleSend() {
@@ -916,11 +1030,59 @@
             obj.material.color = new THREE.Color(0xe63946);
           }
         });
+
+        // ── Movement & Personality loops ──
+        startMovementLoops();
+
         loadingEl.style.display = "none";
         addMessage("Aria is live! Ask her anything about AI ✨", "system");
         resetIdleTimer();
       } catch (err) {
         loadingTxt.textContent = "Failed to load avatar: " + err.message;
+      }
+
+      // ── Movement loops — keep avatar feeling alive ──
+      function startMovementLoops() {
+        const gestures = ['handup', 'side', 'shrug', 'index', 'thumbup', 'ok', 'namaste'];
+        const moods = ['neutral', 'happy', 'happy', 'happy', 'love'];
+
+        // Random gesture every 12-25s
+        function nextGesture() {
+          if (head?.armature && isPlaying) {
+            try {
+              const g = gestures[Math.floor(Math.random() * gestures.length)];
+              head.playGesture(g, 1.5 + Math.random() * 2);
+            } catch (e) {}
+          }
+          setTimeout(nextGesture, 12000 + Math.random() * 13000);
+        }
+        setTimeout(nextGesture, 5000);
+
+        // Random mood shifts every 30-60s
+        function nextMood() {
+          try {
+            head?.setMood(moods[Math.floor(Math.random() * moods.length)]);
+          } catch (e) {}
+          setTimeout(nextMood, 30000 + Math.random() * 30000);
+        }
+        setTimeout(nextMood, 15000);
+
+        // Look around occasionally — adds life
+        function nextGlance() {
+          if (head?.armature) {
+            try {
+              const dx = (Math.random() - 0.5) * 0.4;
+              const dy = (Math.random() - 0.5) * 0.2;
+              head.lookAt(dx, dy, 1, 600 + Math.random() * 400);
+              setTimeout(() => head.lookAtCamera(800), 1500 + Math.random() * 1500);
+            } catch (e) {}
+          }
+          setTimeout(nextGlance, 8000 + Math.random() * 12000);
+        }
+        setTimeout(nextGlance, 8000);
+
+        // Subtle pose shifts (lean, sway) via dynamic bones already running
+        // Also trigger speakWithHands when speaking starts (already in speakResponse)
       }
 
       document.addEventListener("visibilitychange", () => {
@@ -965,16 +1127,26 @@
     <div id="avatar-panel">
       <div id="avatar"></div>
       <div id="avatar-glow"></div>
+
+      <!-- Now talking banner -->
+      <div id="now-talking"></div>
+
+      <!-- Stream stats -->
+      <div id="stream-stats">
+        <div class="stat-pill"><div class="dot"></div><span class="label">UPTIME</span><span class="value" id="stat-uptime">0:00:00</span></div>
+        <div class="stat-pill"><span class="label">SEGMENTS</span><span class="value" id="stat-segments">0</span></div>
+        <div class="stat-pill"><span class="label">QUEUE</span><span class="value" id="stat-queue">0</span></div>
+      </div>
+
       <div id="subtitle-bar"></div>
       <div id="loading-overlay">
         <div class="logo">aria.ai</div>
         <div class="spinner"></div>
         <div id="loading-text">Initializing…</div>
       </div>
-      <div id="avatar"></div>
       <div id="debug"></div>
-      <div id="status">Loading...</div>
-      <div id="loading">Initializing...</div>
+      <div id="status" style="display:none">Loading...</div>
+      <div id="loading" style="display:none"></div>
     </div>
 
     <!-- Chat -->
