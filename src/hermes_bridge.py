@@ -498,7 +498,7 @@ if __name__ == "__main__":
     print("=" * 50)
 
     # Start pre-generation queue (fills in background)
-    globals()['idle_queue'] = SpeechPregenQueue(persona=PERSONA, queue_size=3)
+    globals()['idle_queue'] = SpeechPregenQueue(persona=PERSONA, queue_size=3, hermes_agent=agent)
     if USE_GPT_AUDIO:
         idle_queue.start()
 

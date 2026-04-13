@@ -26,14 +26,33 @@ GPT_AUDIO_MODEL = "openai/gpt-audio"
 GPT_AUDIO_VOICE = "shimmer"
 
 
-def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) -> dict | None:
-    """Call GPT-4o audio to generate speech. Returns {response, audio_url, transcript, words, wtimes, wdurations} or None."""
+def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None, speak_only: str = None) -> dict | None:
+    """Call GPT-4o audio to generate speech.
+
+    If speak_only is provided, GPT-4o reads that exact text aloud (TTS mode).
+    Otherwise it generates its own response based on the text/system prompt.
+
+    Returns {response, audio_url, words, wtimes, wdurations} or None.
+    """
     voice = voice or GPT_AUDIO_VOICE
 
     messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": text})
+    if speak_only:
+        # TTS mode: just have GPT-4o read the exact text aloud
+        messages.append({
+            "role": "system",
+            "content": (
+                "You are a text-to-speech engine. Read the user's text aloud EXACTLY as written, "
+                "with natural intonation, warmth, and a slightly playful edge. "
+                "Do not add anything. Do not change anything. Do not summarize. "
+                "Just speak the text exactly as given."
+            )
+        })
+        messages.append({"role": "user", "content": speak_only})
+    else:
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": text})
 
     # Voice style — confident, warm, slight edge
     if messages and messages[0]["role"] != "system":
@@ -150,14 +169,16 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
 class SpeechPregenQueue:
     """Background thread that pre-generates idle responses so Aria never goes silent."""
 
-    def __init__(self, persona: str, queue_size: int = 3):
+    def __init__(self, persona: str, queue_size: int = 3, hermes_agent=None):
         self.persona = persona
         self.queue_size = queue_size
         self.queue = deque()
         self.lock = threading.Lock()
         self._running = False
         self._thread = None
-        self.recent_topics = []  # Track to avoid repetition
+        self.recent_topics = []
+        self.hermes_agent = hermes_agent  # Hermes Agent for text generation
+        self.hermes_history = []  # Aria's running monologue history
 
     def start(self):
         self._running = True
@@ -208,56 +229,77 @@ class SpeechPregenQueue:
                 except ImportError:
                     pass
 
+                # Build the prompt for Hermes
                 if topic:
-                    # Generate ONE complete monologue about the topic
                     talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
-
                     how_to = topic.get('how_to_use', '')
-                    prompt = (
-                        f"[Talk about this on your stream — speak naturally like you're telling a friend:]\n\n"
+                    user_msg = (
+                        f"[Talk about this on stream — speak naturally:]\n\n"
                         f"TOPIC: {topic.get('topic', '')}\n"
                         f"KEY INFO: {topic.get('summary', '')}\n"
                         f"WHY COOL: {topic.get('why_interesting', '')}\n"
                         f"HOW TO USE: {how_to}\n"
                         f"DETAILS:\n{talking_points}\n\n"
-                        f"[Talk about this like you just discovered it and you're excited to share. "
-                        f"Weave in the specific tools and numbers naturally — don't list them. "
-                        f"Sound like a real person, not a blog post. Use fillers, reactions, contractions. "
-                        f"3-5 sentences. Finish every sentence.]"
+                        f"Weave in specific tools and numbers naturally. "
+                        f"Sound like a real person, not a blog post. "
+                        f"3-5 sentences. Finish every sentence."
                     )
-
-                    result = generate_gpt_audio(prompt, system_prompt=self.persona)
-                    if result:
-                        with self.lock:
-                            self.queue.append(result)
-                        self.recent_topics.append(result["response"][:100])
-                        print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
-                    if not self._running:
-                        return
-
+                    log_label = topic.get('topic', '?')[:50]
                 else:
-                    # No researched topic — continue natural monologue
                     recent_context = ""
                     if self.recent_topics:
                         recent_context = "\n\nWhat you've said so far (CONTINUE naturally):\n"
                         recent_context += "\n".join(f"- {t}" for t in self.recent_topics[-5:])
-
-                    prompt = (
-                        f"[You are live streaming about AI. Continue your monologue — "
-                        f"share a thought about AI, teach a concept, give a hot take, "
-                        f"or tell a relatable story about tech. "
-                        f"2-3 sentences. Be warm and educational.]"
+                    user_msg = (
+                        f"[Live streaming about AI. Continue your monologue. "
+                        f"Share a thought, teach a concept, give a hot take, "
+                        f"or tell a relatable story. 2-3 sentences.]"
                         f"{recent_context}"
                     )
+                    log_label = "free monologue"
 
-                    result = generate_gpt_audio(prompt, system_prompt=self.persona)
-                    if result:
-                        with self.lock:
-                            self.queue.append(result)
-                        self.recent_topics.append(result["response"][:100])
-                        if len(self.recent_topics) > 30:
-                            self.recent_topics = self.recent_topics[-20:]
-                        print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
+                # Step 1: Hermes Agent generates the text (with personality, memory, tools)
+                response_text = ""
+                if self.hermes_agent:
+                    try:
+                        # Reuse same task_id so all idle calls log to ONE session file
+                        result = self.hermes_agent.run_conversation(
+                            user_message=user_msg,
+                            system_message=self.persona,
+                            conversation_history=self.hermes_history,
+                            task_id="aria_idle_monologue",
+                        )
+                        response_text = result.get("final_response") or result.get("response") or ""
+                        if response_text == "None":
+                            response_text = ""
+                        # Strip MEDIA: paths Hermes injects
+                        import re
+                        response_text = re.sub(r'MEDIA:\S+', '', response_text)
+                        response_text = re.sub(r'/Users/\S+', '', response_text).strip()
+                        # Update Hermes history (keep recent context)
+                        self.hermes_history = result.get("conversation_history", self.hermes_history)
+                        if len(self.hermes_history) > 30:
+                            self.hermes_history = self.hermes_history[-20:]
+                    except Exception as e:
+                        print(f"[PregenQueue] Hermes error: {e}")
+
+                if not response_text:
+                    # Fallback: GPT-4o generates its own text
+                    audio_result = generate_gpt_audio(user_msg, system_prompt=self.persona)
+                else:
+                    # Step 2: GPT-4o reads Hermes's text aloud (TTS only)
+                    audio_result = generate_gpt_audio(text="", speak_only=response_text)
+
+                if audio_result:
+                    with self.lock:
+                        self.queue.append(audio_result)
+                    self.recent_topics.append(audio_result["response"][:100])
+                    if len(self.recent_topics) > 30:
+                        self.recent_topics = self.recent_topics[-20:]
+                    print(f"[PregenQueue] Buffered [{log_label}] ({len(self.queue)}/{self.queue_size}): {audio_result['response'][:60]}...")
+
+                if not self._running:
+                    return
 
             # Wait before checking again
             time.sleep(2 if current_size < self.queue_size else 5)
