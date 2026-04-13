@@ -171,17 +171,19 @@ class SpeechPregenQueue:
                     # Generate ONE complete monologue about the topic
                     talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
 
+                    how_to = topic.get('how_to_use', '')
                     prompt = (
-                        f"[You're live streaming about AI news. Present this topic as ONE complete segment:]\n\n"
+                        f"[You're live streaming. Teach this topic with SPECIFIC details:]\n\n"
                         f"TOPIC: {topic.get('topic', '')}\n"
                         f"SUMMARY: {topic.get('summary', '')}\n"
                         f"WHY IT MATTERS: {topic.get('why_interesting', '')}\n"
+                        f"HOW TO USE IT:\n{how_to}\n"
                         f"TALKING POINTS:\n{talking_points}\n\n"
-                        f"[Give a complete, flowing explanation in 4-6 sentences. "
-                        f"Introduce it, explain it with an analogy, say why it matters, "
-                        f"and end with your take or a question for chat. "
-                        f"This must be ONE complete, self-contained segment. "
-                        f"Do NOT stop mid-sentence.]"
+                        f"[Explain this with CONCRETE specifics — name the exact tools, "
+                        f"commands, prices, and steps. Give a real example of how someone "
+                        f"would use this TODAY to build something or make money. "
+                        f"Be flirty and warm but technically deep. "
+                        f"4-6 sentences. Complete thoughts only. Do NOT stop mid-sentence.]"
                     )
 
                     result = generate_gpt_audio(prompt, system_prompt=self.persona)
