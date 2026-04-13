@@ -433,7 +433,7 @@
 
     const BACKEND = "http://localhost:5001";
     const AVATAR_URL = "./avatars/brunette.glb";
-    const IDLE_INTERVAL_MS = 28000;
+    const IDLE_INTERVAL_MS = 3000; // 3s gap between speech — keeps Aria talking constantly
 
     // ── State ─────────────────────────────────────
     let head;
@@ -472,7 +472,7 @@
     }
 
     // ── Messages ──────────────────────────────────
-    function addMessage(text, type, username = "") {
+    function addMessage(text, type, username = "", stream = false) {
       const wrap = document.createElement("div");
       wrap.className = `msg ${type}`;
 
@@ -495,11 +495,32 @@
 
       const bubble = document.createElement("div");
       bubble.className = "msg-bubble";
-      bubble.textContent = text;
-      wrap.appendChild(bubble);
 
-      chatMsgs.appendChild(wrap);
-      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+      if (stream && type === "aria") {
+        // Typewriter effect — stream word by word
+        bubble.textContent = "";
+        wrap.appendChild(bubble);
+        chatMsgs.appendChild(wrap);
+        chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+        const words = text.split(/(\s+)/); // keep whitespace
+        let i = 0;
+        const typeInterval = setInterval(() => {
+          if (i < words.length) {
+            bubble.textContent += words[i];
+            i++;
+            chatMsgs.scrollTop = chatMsgs.scrollHeight;
+          } else {
+            clearInterval(typeInterval);
+          }
+        }, 60); // ~60ms per word chunk
+      } else {
+        bubble.textContent = text;
+        wrap.appendChild(bubble);
+        chatMsgs.appendChild(wrap);
+        chatMsgs.scrollTop = chatMsgs.scrollHeight;
+      }
+
       return wrap;
     }
 
@@ -650,7 +671,7 @@
         const data = await res.json();
         thinkEl.remove();
         if (data.response) {
-          addMessage(data.response, "aria", "Aria");
+          addMessage(data.response, "aria", "Aria", true);
           if (data.mood) try { head.setMood(data.mood); } catch(_) {}
           await speakResponse(data);
         }
@@ -674,7 +695,7 @@
         const res = await fetch(`${BACKEND}/idle`);
         const data = await res.json();
         if (data.response) {
-          addMessage(data.response, "aria", "Aria");
+          addMessage(data.response, "aria", "Aria", true);
           if (data.mood) try { head.setMood(data.mood); } catch(_) {}
           await speakResponse(data);
         }

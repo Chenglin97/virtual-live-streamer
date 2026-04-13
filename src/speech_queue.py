@@ -144,30 +144,36 @@ class SpeechPregenQueue:
             return len(self.queue)
 
     def _fill_loop(self):
-        """Background loop: keep queue full."""
+        """Background loop: keep queue full with continuous narrative."""
         while self._running:
             with self.lock:
                 current_size = len(self.queue)
 
             if current_size < self.queue_size:
-                # Generate next idle response
-                avoid = "\n".join(f"- {t}" for t in self.recent_topics[-10:])
+                # Build context of what was said so far
+                recent_context = ""
+                if self.recent_topics:
+                    recent_context = "\n\nWhat you've said so far (CONTINUE from here, don't repeat):\n"
+                    recent_context += "\n".join(f"- {t}" for t in self.recent_topics[-5:])
+
                 prompt = (
-                    f"[System: You are live streaming. Say ONE fresh, interesting thing — "
-                    f"a fun thought, hot take, question for chat, mini story, or random observation. "
-                    f"1-2 sentences max. Be warm, expressive, engaging.\n"
+                    f"[System: You are live streaming and talking continuously. "
+                    f"Continue your monologue naturally — build on what you just said, "
+                    f"go deeper on the topic, share a related thought, tell the next part of the story, "
+                    f"or smoothly transition to a connected idea. "
+                    f"Keep it flowing like a natural stream of consciousness. "
+                    f"2-3 sentences. Be warm, expressive, engaging — like you're talking to a friend.]"
+                    f"{recent_context}"
                 )
-                if avoid:
-                    prompt += f"\nDO NOT repeat these topics:\n{avoid}\n"
 
                 result = generate_gpt_audio(prompt, system_prompt=self.persona)
                 if result:
                     with self.lock:
                         self.queue.append(result)
-                    self.recent_topics.append(result["response"][:80])
+                    self.recent_topics.append(result["response"][:100])
                     if len(self.recent_topics) > 30:
                         self.recent_topics = self.recent_topics[-20:]
                     print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
 
             # Wait before checking again
-            time.sleep(2 if current_size < self.queue_size else 10)
+            time.sleep(2 if current_size < self.queue_size else 5)
