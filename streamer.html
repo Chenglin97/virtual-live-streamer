@@ -852,24 +852,58 @@
         });
 
         // ── Customize avatar appearance ──
-        // Change hair color, clothing colors, etc. at runtime
         const THREE = await import("three");
-        const customizations = {
-          'Wolf3D_Hair':         { color: 0x1a1a1a },  // Jet black hair
-          'Wolf3D_Outfit_Top':   { color: 0xe63946 },  // Red top
-          'Wolf3D_Outfit_Bottom':{ color: 0x1a1a1a },  // Black bottoms
+
+        // Hair style presets — apply transform + color to hair mesh
+        window.hairStyles = {
+          default:  { scale: [1, 1, 1],       pos: [0, 0, 0],    color: 0x1a1a1a, label: "Default" },
+          long:     { scale: [1, 1.35, 1.05], pos: [0, -0.02, 0], color: 0x1a1a1a, label: "Long & Sleek" },
+          volume:   { scale: [1.15, 1.1, 1.15], pos: [0, 0.01, 0], color: 0x2a1a0e, label: "Voluminous Brown" },
+          pixie:    { scale: [0.95, 0.7, 0.95], pos: [0, 0.01, 0], color: 0x1a1a1a, label: "Short Pixie" },
+          blonde:   { scale: [1.05, 1.15, 1.05], pos: [0, 0, 0],  color: 0xd4b878, label: "Blonde Bob" },
+          redhead:  { scale: [1.08, 1.2, 1.08], pos: [0, -0.01, 0], color: 0x8b3a1a, label: "Fiery Red" },
+          silver:   { scale: [1.1, 1.25, 1.1], pos: [0, -0.01, 0], color: 0xc0c0d0, label: "Silver Long" },
+          anime:    { scale: [1.2, 1.15, 1.15], pos: [0, 0.02, 0], color: 0x663399, label: "Purple Anime" },
         };
+
+        // Find the hair mesh
+        let hairMesh = null;
         head.armature?.traverse((obj) => {
-          if (obj.isMesh && obj.material?.name) {
-            const cust = customizations[obj.material.name];
-            if (cust) {
-              // Clone material so we don't affect shared instances
-              obj.material = obj.material.clone();
-              if (cust.color !== undefined) {
-                obj.material.color = new THREE.Color(cust.color);
-              }
-              obj.material.needsUpdate = true;
-            }
+          if (obj.isMesh && obj.material?.name === 'Wolf3D_Hair') hairMesh = obj;
+        });
+
+        window.setHairStyle = function(styleName) {
+          const style = window.hairStyles[styleName];
+          if (!style || !hairMesh) return;
+          hairMesh.scale.set(...style.scale);
+          hairMesh.position.set(...style.pos);
+          hairMesh.material = hairMesh.material.clone();
+          hairMesh.material.color = new THREE.Color(style.color);
+          hairMesh.material.needsUpdate = true;
+          localStorage.setItem('hairStyle', styleName);
+        };
+
+        // Apply saved style or default
+        window.setHairStyle(localStorage.getItem('hairStyle') || 'long');
+
+        // Populate hair style picker
+        const picker = document.getElementById('hair-picker');
+        if (picker) {
+          Object.entries(window.hairStyles).forEach(([key, style]) => {
+            const btn = document.createElement('span');
+            btn.className = 'pill';
+            btn.textContent = style.label;
+            btn.style.cursor = 'pointer';
+            btn.addEventListener('click', () => window.setHairStyle(key));
+            picker.appendChild(btn);
+          });
+        }
+
+        // Also recolor outfit
+        head.armature?.traverse((obj) => {
+          if (obj.isMesh && obj.material?.name === 'Wolf3D_Outfit_Top') {
+            obj.material = obj.material.clone();
+            obj.material.color = new THREE.Color(0xe63946);
           }
         });
         loadingEl.style.display = "none";
@@ -944,6 +978,10 @@
         <span class="pill" data-q="How does fine-tuning work?">Fine-tuning</span>
         <span class="pill" data-q="What are embeddings?">Embeddings</span>
         <span class="pill" data-q="What is prompt engineering?">Prompting</span>
+      </div>
+
+      <div id="hair-picker" style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px">
+        <span style="font-size:11px;color:var(--text-muted);width:100%;margin-bottom:4px">HAIR STYLE</span>
       </div>
 
       <div id="chat-messages"></div>
