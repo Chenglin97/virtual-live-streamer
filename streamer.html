@@ -654,14 +654,9 @@
       }
     }
 
-    // ── Chat ──────────────────────────────────────
+    // ── Chat — fetch response and insert at front of speech queue ──
     async function doChat(message, username) {
-      isBusy = true;
-      sendBtn.disabled = true;
       resetIdleTimer();
-      addMessage(message, "viewer", username);
-
-      const thinkEl = showThinking();
       try {
         const res = await fetch(`${BACKEND}/chat`, {
           method: "POST",
@@ -669,41 +664,26 @@
           body: JSON.stringify({ message, username }),
         });
         const data = await res.json();
-        thinkEl.remove();
         if (data.response) {
-          addMessage(data.response, "aria", "Aria", true);
-          if (data.mood) try { head.setMood(data.mood); } catch(_) {}
-          await speakResponse(data);
+          enqueueSpeech(data, "chat");
         }
       } catch (err) {
-        thinkEl.remove();
-        addMessage("(connection error)", "system");
-        console.error(err);
-      } finally {
-        isBusy = false;
-        sendBtn.disabled = messageQueue.length > 0;
-        resetIdleTimer();
-        if (messageQueue.length > 0) processQueue();
+        console.error("Chat error:", err);
       }
     }
 
-    // ── Idle ──────────────────────────────────────
+    // ── Idle — fetch and append to back of speech queue ──
     async function doIdle() {
-      if (isBusy) { resetIdleTimer(); return; }
-      isBusy = true;
+      // Don't fetch more if queue already has plenty
+      if (speechQueue.length >= 5) { resetIdleTimer(); return; }
       try {
         const res = await fetch(`${BACKEND}/idle`);
         const data = await res.json();
         if (data.response) {
-          addMessage(data.response, "aria", "Aria", true);
-          if (data.mood) try { head.setMood(data.mood); } catch(_) {}
-          await speakResponse(data);
+          enqueueSpeech(data, "idle");
         }
       } catch (_) {}
-      finally {
-        isBusy = false;
-        resetIdleTimer();
-      }
+      resetIdleTimer();
     }
 
     // ── Twitch feed poller — picks up messages from Twitch chat ──
@@ -732,20 +712,8 @@
             // Skip if we're already busy (queue it visually)
             if (!msg.response || !msg.audio_url) continue;
 
-            // Show viewer message in chat
-            if (msg.message && msg.username) {
-              addMessage(msg.message, "viewer", msg.username);
-            }
-
-            // Interrupt current speech and speak Aria's response immediately
-            try { head.stopSpeaking(); } catch(_) {}
-            isBusy = true;
-            resetIdleTimer();
-            addMessage(msg.response, "aria", "Aria", true);
-            if (msg.mood) try { head.setMood(msg.mood); } catch(_) {}
-            await speakResponse(msg);
-            isBusy = false;
-            resetIdleTimer();
+            // Insert Twitch chat response at front of queue
+            enqueueSpeech(msg, "feed", msg.message, msg.username);
           }
 
           if (data.latest_id !== undefined) {
@@ -766,6 +734,50 @@
       });
     });
 
+    // ── Speech queue — plays items one at a time ──
+    let speechQueue = [];      // [{data, type}]  type: "chat" | "idle" | "feed"
+    let isPlaying = false;
+
+    function enqueueSpeech(data, type = "idle", viewerMsg = null, viewerName = null) {
+      const item = { data, type, viewerMsg, viewerName };
+      if (type === "chat" || type === "feed") {
+        // Chat messages go to FRONT of queue (after currently playing)
+        speechQueue.unshift(item);
+      } else {
+        // Idle/monologue appended to back
+        speechQueue.push(item);
+      }
+      if (!isPlaying) playNext();
+    }
+
+    async function playNext() {
+      if (speechQueue.length === 0) {
+        isPlaying = false;
+        isBusy = false;
+        resetIdleTimer();
+        return;
+      }
+
+      isPlaying = true;
+      isBusy = true;
+      const item = speechQueue.shift();
+
+      // Show viewer message if it's a chat response
+      if (item.viewerMsg && item.viewerName) {
+        addMessage(item.viewerMsg, "viewer", item.viewerName);
+      }
+
+      // Show and speak Aria's response
+      if (item.data?.response) {
+        addMessage(item.data.response, "aria", "Aria", true);
+        if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
+        await speakResponse(item.data);
+      }
+
+      // Play next item
+      playNext();
+    }
+
     // ── Send ──────────────────────────────────────
     function handleSend() {
       if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
@@ -773,12 +785,25 @@
       const user = usernameInput.value.trim() || "viewer";
       if (!msg) return;
       chatInput.value = "";
-      ownMessages.add(msg); // mark so feed poller skips it
+      ownMessages.add(msg);
 
-      // Stop current speech and respond immediately — no queuing
-      try { head.stopSpeaking(); } catch(_) {}
-      isBusy = false;
-      doChat(msg, user);
+      // Show user message immediately
+      addMessage(msg, "viewer", user);
+
+      // Fetch response and insert at front of queue
+      resetIdleTimer();
+      fetch(`${BACKEND}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, username: user }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.response) {
+          enqueueSpeech(data, "chat");
+        }
+      })
+      .catch(err => console.error("Chat error:", err));
     }
 
     sendBtn.addEventListener("click", handleSend);
