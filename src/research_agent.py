@@ -30,26 +30,30 @@ from run_agent import AIAgent
 TOPIC_QUEUE_FILE = Path(__file__).parent.parent / "data" / "topic_queue.json"
 TOPIC_QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-RESEARCH_PROMPT = """You are a research assistant for Aria, an AI educator streamer who teaches people how to BUILD with AI.
+RESEARCH_PROMPT = """You are a research assistant for Aria, an AI educator streamer.
 
-Find the LATEST AI news that is ACTIONABLE — things people can use, build with, or profit from.
+USE THE BROWSER TOOLS to find LATEST AI news. The dedicated `web_search` tool is not available — you must use `browser_navigate` and related browser tools to visit pages directly.
 
-Search the web for:
-1. New AI model releases — with benchmark numbers, pricing, what they're best for
-2. New AI tools/frameworks — with install commands and what problems they solve
-3. Specific AI tutorials or techniques going viral — methods people are actually using
-4. AI business opportunities — real companies making money with AI, how much, how
-5. Open source projects — specific repos, star counts, what they do, how to use them
-6. Cost changes — API price drops, free tiers, cheaper alternatives
+Concrete steps:
+1. Use `browser_navigate` to visit AI news sources, for example:
+   - https://news.ycombinator.com (filter for AI posts)
+   - https://huggingface.co/papers (latest AI papers)
+   - https://x.com/search?q=AI%20release&f=live (live AI tweets)
+   - https://github.com/trending?since=daily (trending AI repos)
+   - https://www.theverge.com/ai-artificial-intelligence
+   - https://techcrunch.com/category/artificial-intelligence/
+2. Use `browser_snapshot` or `browser_get_images` to read the page content.
+3. Pick 5-8 ACTIONABLE stories — things developers can build with, use, or learn from.
+4. Open the most interesting ones with `browser_navigate` for details.
 
-For EACH finding, provide:
+For EACH finding, return JSON with:
 - topic: Specific title (e.g. "Llama 4 Scout 109B runs free on Groq at 200 tok/s" NOT "New AI model released")
 - summary: What it is + specific numbers (price, speed, accuracy)
 - why_interesting: What can people BUILD with this? What value does it create?
-- how_to_use: Step by step how a developer would actually use this (commands, URLs, code patterns)
-- talking_points: 4-5 specific concrete points — real numbers, real tool names, real comparisons
+- how_to_use: Step by step (commands, URLs, code patterns)
+- talking_points: 4-5 specific concrete points — real numbers, real tool names
 
-Return as JSON array. Find 5-8 topics. Be SPECIFIC — no generalities.
+Return ONLY a JSON array of 5-8 objects. Be SPECIFIC — no generalities.
 """
 
 
@@ -140,11 +144,14 @@ class ResearchAgent:
         result = self.agent.run_conversation(
             user_message=RESEARCH_PROMPT,
             system_message=(
-                "You are a research assistant. Use your web search and browsing tools "
-                "to find the very latest AI news. Return structured JSON. "
-                "Be thorough — check multiple sources."
+                "You are a research assistant with access to BROWSER tools (Playwright). "
+                "Use browser_navigate to visit news sites, browser_snapshot to read them, "
+                "and browser_click/scroll to explore. The dedicated web_search tool is unavailable. "
+                "Visit at least 3 different sources before returning results. "
+                "Return ONLY a JSON array — no markdown, no commentary."
             ),
             conversation_history=[],
+            task_id="aria_research",
         )
 
         response = result.get("final_response") or result.get("response") or ""
