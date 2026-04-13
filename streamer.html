@@ -706,6 +706,61 @@
       }
     }
 
+    // ── Twitch feed poller — picks up messages from Twitch chat ──
+    let lastFeedId = 0;
+    let ownMessages = new Set(); // messages sent from this UI, skip in feed
+
+    function startFeedPoller() {
+      setInterval(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/feed?since=${lastFeedId}`);
+          const data = await res.json();
+          if (!data.messages || data.messages.length === 0) return;
+
+          for (const msg of data.messages) {
+            lastFeedId = Math.max(lastFeedId, msg.id);
+
+            // Skip messages we sent from this web UI
+            if (msg.message && ownMessages.has(msg.message)) {
+              ownMessages.delete(msg.message);
+              continue;
+            }
+
+            // Skip idle messages (handled by doIdle)
+            if (msg.is_idle) continue;
+
+            // Skip if we're already busy (queue it visually)
+            if (!msg.response || !msg.audio_url) continue;
+
+            // Show viewer message in chat
+            if (msg.message && msg.username) {
+              addMessage(msg.message, "viewer", msg.username);
+            }
+
+            // Speak Aria's response (wait if busy)
+            const speakIt = async () => {
+              while (isBusy) await new Promise(r => setTimeout(r, 500));
+              isBusy = true;
+              resetIdleTimer();
+              addMessage(msg.response, "aria", "Aria", true);
+              if (msg.mood) try { head.setMood(msg.mood); } catch(_) {}
+              await speakResponse(msg);
+              isBusy = false;
+              resetIdleTimer();
+            };
+            speakIt();
+          }
+
+          if (data.latest_id !== undefined) {
+            lastFeedId = Math.max(lastFeedId, data.latest_id);
+          }
+        } catch (_) {}
+      }, 2000);
+    }
+
+    // Start feed poller on load
+    startFeedPoller();
+
     // ── Topic pills ───────────────────────────────
     document.querySelectorAll(".pill").forEach(pill => {
       pill.addEventListener("click", () => {
@@ -721,6 +776,7 @@
       const user = usernameInput.value.trim() || "viewer";
       if (!msg) return;
       chatInput.value = "";
+      ownMessages.add(msg); // mark so feed poller skips it
 
       if (isBusy) {
         messageQueue.push({ message: msg, username: user });
