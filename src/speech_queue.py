@@ -35,13 +35,20 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": text})
 
+    # System instruction to prevent mid-sentence cuts
+    if messages and messages[0]["role"] != "system":
+        messages.insert(0, {
+            "role": "system",
+            "content": "CRITICAL: Always speak in complete sentences. Never stop mid-word or mid-sentence. Finish every thought completely before stopping."
+        })
+
     body = {
         "model": GPT_AUDIO_MODEL,
         "modalities": ["text", "audio"],
         "audio": {"voice": voice, "format": "pcm16"},
         "stream": True,
         "messages": messages,
-        "max_tokens": 500,
+        "max_tokens": 800,
     }
 
     audio_chunks = []
@@ -179,13 +186,19 @@ class SpeechPregenQueue:
                     if recent_said:
                         prompt += f"\n\nYou already said (transition smoothly, don't repeat):\n{recent_said}"
 
-                    # Generate multiple segments for this topic
-                    for segment in range(3):
-                        result = generate_gpt_audio(prompt if segment == 0 else
-                            f"[Continue explaining the topic: {topic.get('topic', '')}. "
-                            f"Go deeper, share your opinion, or connect it to something relatable. "
-                            f"2-3 sentences. Keep the energy up!]\n\nYou just said: {self.recent_topics[-1] if self.recent_topics else ''}",
-                            system_prompt=self.persona)
+                    # Generate multiple self-contained segments for this topic
+                    segment_prompts = [
+                        prompt,  # Segment 1: introduce the topic
+                        (f"[You just introduced '{topic.get('topic', '')}' to your audience. "
+                         f"Now go DEEPER — explain WHY this matters, give a concrete example, "
+                         f"or use an analogy to make it click. "
+                         f"Start with a complete new sentence. 2-3 full sentences.]"),
+                        (f"[Wrap up your take on '{topic.get('topic', '')}'. "
+                         f"Share your personal opinion, a prediction, or ask chat what they think. "
+                         f"Start with a complete new sentence. End cleanly. 2-3 full sentences.]"),
+                    ]
+                    for segment, seg_prompt in enumerate(segment_prompts):
+                        result = generate_gpt_audio(seg_prompt, system_prompt=self.persona)
                         if result:
                             with self.lock:
                                 self.queue.append(result)
