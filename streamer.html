@@ -857,9 +857,24 @@
       try {
         loadingTxt.textContent = "Loading Aria…";
         await head.showAvatar({
-          url: './avatars/brunette.glb',
+          url: './avatars/vroid.glb',
           body: 'F',
           avatarMood: 'happy',
+          baseline: { headRotateX: -0.1, eyeBlinkLeft: 0.05, eyeBlinkRight: 0.05 },
+          modelDynamicBones: [
+            {"bone":"J_Sec_L_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_R_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_Hair2_06","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_06","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_07","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_07","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_08","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_08","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_12","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_12","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_13","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_13","type":"mix2","stiffness":150,"damping":4},
+          ],
           lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) {
@@ -870,7 +885,7 @@
         // ── Customize avatar appearance ──
         const THREE = await import("three");
 
-        // Hair style presets — apply transform + color to hair mesh
+        // Hair style presets (VRoid uses different material names than brunette)
         window.hairStyles = {
           default:  { scale: [1, 1, 1],       pos: [0, 0, 0],    color: 0x1a1a1a, label: "Default" },
           long:     { scale: [1, 1.35, 1.05], pos: [0, -0.02, 0], color: 0x1a1a1a, label: "Long & Sleek" },

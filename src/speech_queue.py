@@ -60,6 +60,8 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
     transcript = ""
 
     try:
+        # Use raw bytes streaming to avoid any line-buffering issues
+        buffer = ""
         with httpx.stream(
             "POST", GPT_AUDIO_URL,
             json=body,
@@ -69,21 +71,43 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
             },
             timeout=60,
         ) as resp:
-            for line in resp.iter_lines():
-                if not line.startswith("data: "):
-                    continue
-                data = line[6:]
-                if data == "[DONE]":
-                    break
-                chunk = json.loads(data)
-                delta = chunk.get("choices", [{}])[0].get("delta", {})
-                if delta.get("audio"):
-                    d = delta["audio"].get("data", "")
-                    if d:
-                        audio_chunks.append(base64.b64decode(d))
-                    t = delta["audio"].get("transcript", "")
-                    if t:
-                        transcript += t
+            for raw_chunk in resp.iter_bytes():
+                buffer += raw_chunk.decode("utf-8", errors="replace")
+                # Process complete SSE events (separated by \n\n or just \n)
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Accept both "data: " and "data:" (with/without space)
+                    if line.startswith("data:"):
+                        data = line[5:].lstrip()
+                    else:
+                        continue
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    # Extract audio + transcript from ALL possible locations
+                    choices = chunk.get("choices", [])
+                    if not choices:
+                        continue
+                    for choice in choices:
+                        # Try delta first (streaming)
+                        delta = choice.get("delta", {}) or choice.get("message", {})
+                        audio_obj = delta.get("audio") or {}
+                        if isinstance(audio_obj, dict):
+                            d = audio_obj.get("data", "")
+                            if d:
+                                try:
+                                    audio_chunks.append(base64.b64decode(d))
+                                except Exception:
+                                    pass
+                            t = audio_obj.get("transcript", "")
+                            if t:
+                                transcript += t
 
         if not audio_chunks:
             return None
