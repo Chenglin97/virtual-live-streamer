@@ -19,11 +19,24 @@ import httpx
 AUDIO_DIR = Path(__file__).parent.parent / "output" / "tts_cache"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def cleanup_old_audio(max_age_seconds: int = 3600):
+    """Delete audio files older than max_age_seconds. Called periodically."""
+    import os
+    now = time.time()
+    count = 0
+    for f in AUDIO_DIR.iterdir():
+        if f.suffix in ('.wav', '.mp3', '.json') and (now - f.stat().st_mtime) > max_age_seconds:
+            f.unlink()
+            count += 1
+    if count:
+        print(f"[Cleanup] Deleted {count} old audio files")
+
 # PaleBlueDot GPT-4o Audio config
 GPT_AUDIO_URL = "https://open.palebluedot.ai/v1/chat/completions"
 GPT_AUDIO_KEY = "sk-YsLWFSaNOGBy8S3ZKDKWwpiALlSCCBv2TEGPxanBAT0Jhiof"
 GPT_AUDIO_MODEL = "openai/gpt-audio"
-GPT_AUDIO_VOICE = "shimmer"
+GPT_AUDIO_VOICE = "nova"
 
 
 def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None, speak_only: str = None) -> dict | None:
@@ -42,10 +55,10 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None, sp
         messages.append({
             "role": "system",
             "content": (
-                "You are a text-to-speech engine. Read the user's text aloud EXACTLY as written, "
-                "with natural intonation, warmth, and a slightly playful edge. "
-                "Do not add anything. Do not change anything. Do not summarize. "
-                "Just speak the text exactly as given."
+                "You are a text-to-speech engine. Read the user's text aloud EXACTLY as written. "
+                "Speak at a RELAXED, unhurried pace — like you're chatting on a cozy late-night stream. "
+                "Pause briefly between clauses. Warm, natural intonation. "
+                "Do not add anything. Do not change anything. Just speak it."
             )
         })
         messages.append({"role": "user", "content": speak_only})
@@ -54,14 +67,18 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None, sp
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": text})
 
-    # Voice style — confident, warm, slight edge
+    # Voice style
     if messages and messages[0]["role"] != "system":
         messages.insert(0, {
             "role": "system",
             "content": (
-                "Spoken audio for a live stream. You're confident and warm with a slight playful edge.\n"
-                "Not a performance. Not a lecture. Just a smart, attractive person talking.\n"
-                "Short sentences. Natural rhythm. A little teasing. A little intimate.\n"
+                "You are a 22-year-old woman streaming on Twitch. Bright, youthful voice. "
+                "Speak at a relaxed, medium pace — not rushed. Take your time with each sentence. "
+                "Warm and natural.\n"
+                "CRITICAL: Vary your opening every single time. NEVER start with 'okay so', 'so', 'alright', or 'let me'. "
+                "Instead start with the actual content — a fact, a question, a name, a number, a bold claim. "
+                "Examples of good openings: 'Vector databases cost...', 'Here is something wild...', "
+                "'Most people get this wrong...', 'The thing about RAG is...', 'Groq just dropped...'\n"
                 "3-5 sentences. Finish every sentence completely."
             )
         })
@@ -177,8 +194,10 @@ class SpeechPregenQueue:
         self._running = False
         self._thread = None
         self.recent_topics = []
-        self.hermes_agent = hermes_agent  # Hermes Agent for text generation
-        self.hermes_history = []  # Aria's running monologue history
+        self.hermes_agent = hermes_agent
+        self.hermes_history = []
+        self._current_fallback_topic = None  # Stick with one topic for multiple segments
+        self._fallback_segments_on_topic = 0
 
     def start(self):
         self._running = True
@@ -238,76 +257,21 @@ class SpeechPregenQueue:
                     except ImportError:
                         pass
 
-                # Build the prompt for Hermes
+                # Simple prompt — let Hermes decide what to talk about based on its conversation history.
+                # If there's a curriculum segment or research topic, provide it as context. Otherwise just let it continue.
                 if curriculum_segment:
-                    # Curriculum segment — pre-written, just speak it
                     user_msg = (
-                        f"[You are mid-lecture on: {curriculum_segment['module']} — "
-                        f"Lesson: {curriculum_segment['lesson']}]\n\n"
-                        f"Say this exact thing in your own warm, natural voice:\n\n"
-                        f"{curriculum_segment['text']}\n\n"
-                        f"Keep the meaning intact. You can rephrase slightly for natural delivery, "
-                        f"but stay focused on the same point. 2-4 sentences."
+                        f"[Say this in one sentence, your own voice:] {curriculum_segment['text']}"
                     )
                     log_label = f"[course] {curriculum_segment['lesson'][:40]}"
                 elif topic:
-                    talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
-                    how_to = topic.get('how_to_use', '')
                     user_msg = (
-                        f"[Talk about this on stream — speak naturally:]\n\n"
-                        f"TOPIC: {topic.get('topic', '')}\n"
-                        f"KEY INFO: {topic.get('summary', '')}\n"
-                        f"WHY COOL: {topic.get('why_interesting', '')}\n"
-                        f"HOW TO USE: {how_to}\n"
-                        f"DETAILS:\n{talking_points}\n\n"
-                        f"Weave in specific tools and numbers naturally. "
-                        f"Sound like a real person, not a blog post. "
-                        f"3-5 sentences. Finish every sentence."
+                        f"[One sentence about this news:] {topic.get('topic', '')}: {topic.get('summary', '')}"
                     )
                     log_label = topic.get('topic', '?')[:50]
                 else:
-                    # Pick a fresh fallback topic, avoiding what we just said
-                    import random
-                    fallback_topics = [
-                        "vector databases (pinecone vs chroma vs weaviate, real prices and tradeoffs)",
-                        "fine-tuning with LoRA — when it actually beats RAG and when it doesn't",
-                        "the cheapest way to run inference at scale right now",
-                        "prompt caching tricks that cut OpenAI bills by 90%",
-                        "why most RAG systems are bad and the 3 things that fix them",
-                        "the latest open-source coding model worth using",
-                        "evaluating LLMs without spending hundreds on labeled data",
-                        "structured outputs: JSON mode, function calling, or constrained decoding?",
-                        "long context windows — when 1M tokens is a trap",
-                        "embedding models compared (text-embedding-3 vs Cohere vs open-source)",
-                        "real cost of running Llama 70B vs just paying OpenAI",
-                        "agent observability — Langfuse vs Helicone vs build-your-own",
-                        "voice AI stack right now — best STT, best TTS, real latency numbers",
-                        "image generation in 2026 — Flux vs SDXL vs commercial APIs",
-                        "synthetic data for training small models that beat GPT-4",
-                        "the AI tooling nobody talks about but everyone should use",
-                        "MCP servers — what they do, which ones are actually useful",
-                        "deploying LLMs on Modal vs Replicate vs RunPod (real costs)",
-                        "why guardrails are mostly theater and what actually works",
-                        "the surprising thing about Claude vs GPT vs Gemini for coding",
-                    ]
-                    avoid = set()
-                    for t in self.recent_topics[-15:]:
-                        for word in t.lower().split():
-                            if len(word) > 4:
-                                avoid.add(word)
-                    fresh = [t for t in fallback_topics if not any(w in t.lower() for w in avoid if len(w) > 4)]
-                    chosen = random.choice(fresh) if fresh else random.choice(fallback_topics)
-
-                    avoid_list = "\n".join(f"- {t[:80]}" for t in self.recent_topics[-10:])
-                    user_msg = (
-                        f"[Live streaming. Pick a SPECIFIC angle on this AI topic and talk about it:]\n"
-                        f"SUGGESTED TOPIC: {chosen}\n\n"
-                        f"DO NOT repeat anything from these recent things you said:\n{avoid_list}\n\n"
-                        f"Talk about something COMPLETELY DIFFERENT. Switch topics — don't continue the previous thread. "
-                        f"Be specific with tool names, prices, real numbers. "
-                        f"3-5 sentences. Sound like a real person."
-                    )
-                    log_label = f"fallback: {chosen[:40]}"
+                    user_msg = "[Next sentence. ONE sentence only. Then stop.]"
+                    log_label = "next"
 
                 # Step 1: Hermes Agent generates the text (with personality, memory, tools)
                 response_text = ""
@@ -328,17 +292,15 @@ class SpeechPregenQueue:
                         response_text = re.sub(r'MEDIA:\S+', '', response_text)
                         response_text = re.sub(r'/Users/\S+', '', response_text).strip()
                         # Update Hermes history (keep recent context)
-                        self.hermes_history = result.get("conversation_history", self.hermes_history)
-                        if len(self.hermes_history) > 30:
-                            self.hermes_history = self.hermes_history[-20:]
+                        self.hermes_history = result.get("messages", result.get("conversation_history", self.hermes_history))
+                        if len(self.hermes_history) > 60:
+                            self.hermes_history = self.hermes_history[-50:]
                     except Exception as e:
                         print(f"[PregenQueue] Hermes error: {e}")
 
                 if not response_text:
-                    # Fallback: GPT-4o generates its own text
                     audio_result = generate_gpt_audio(user_msg, system_prompt=self.persona)
                 else:
-                    # Step 2: GPT-4o reads Hermes's text aloud (TTS only)
                     audio_result = generate_gpt_audio(text="", speak_only=response_text)
 
                 if audio_result:
@@ -347,10 +309,14 @@ class SpeechPregenQueue:
                     self.recent_topics.append(audio_result["response"][:100])
                     if len(self.recent_topics) > 30:
                         self.recent_topics = self.recent_topics[-20:]
-                    print(f"[PregenQueue] Buffered [{log_label}] ({len(self.queue)}/{self.queue_size}): {audio_result['response'][:60]}...")
+                    print(f"[PregenQueue] Buffered [{log_label}] ({len(self.queue)}): {audio_result['response'][:60]}...")
 
                 if not self._running:
                     return
+
+            # Cleanup old audio files every loop
+            try: cleanup_old_audio(3600)
+            except: pass
 
             # Wait before checking again
             time.sleep(2 if current_size < self.queue_size else 5)

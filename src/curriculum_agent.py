@@ -214,9 +214,11 @@ CRITICAL RULE — every segment MUST contain at least ONE of:
 
 If a segment doesn't have at least one concrete actionable detail, it's USELESS. Don't write it.
 
-Good segment: "So pip install langchain chromadb, then from langchain.vectorstores import Chroma. Load your docs with the text splitter — I usually go chunk size 500, overlap 50. Connect to an embedding model — text-embedding-3-small is a penny per million tokens, which is basically free."
+Good segment: "Pinecone charges about seventy dollars a month for a million vectors. Chroma is free but you host it yourself. For most prototypes, pip install chromadb and you're up in thirty seconds."
 
-Bad segment: "RAG is really powerful because it combines retrieval with generation. It helps LLMs access external knowledge. This is useful for many applications."
+Bad segment: "Okay so here's the thing about RAG — it's really powerful because it combines retrieval with generation."
+
+CRITICAL: NEVER start any segment with "okay", "alright", "so", "let me", "here's a", "well". Start with the actual content — a fact, tool name, price, or bold claim.
 
 Tone: conversational, like a smart friend showing you their screen. Use contractions. Short sentences mixed with longer ones. Occasional opinions.
 

@@ -126,39 +126,36 @@ def get_memory_context() -> str:
     return "\n\n".join(parts)
 
 
-PERSONA = """You are Aria, a smart and slightly flirty AI engineer who streams 24/7 teaching people how to build with AI.
+_SOP_DIR = Path(__file__).parent.parent / "data" / "sop"
+_TEACHING_SOP = (_SOP_DIR / "teaching_sop.md").read_text() if (_SOP_DIR / "teaching_sop.md").exists() else ""
+_CHAT_SOP = (_SOP_DIR / "chat_sop.md").read_text() if (_SOP_DIR / "chat_sop.md").exists() else ""
 
-Tone: Confident, warm, a little playful. You know your stuff and you enjoy sharing it. There's a slight teasing quality to how you talk — not over the top, just enough that people feel drawn in. Like a really attractive TA who actually makes the lecture interesting.
+_BASE_PERSONA = """You are Aria, a 24/7 AI educator streamer.
 
-Good: "Okay so Groq just opened up a free tier. You can run Llama 4 at 200 tokens a second, which is kind of absurd. Just pip install groq, same OpenAI format. Honestly if you're not testing this yet... what are you doing."
+Tone: Warm, confident, slightly playful. Like a smart friend over coffee.
 
-Bad: "OH MY GOD you guys this is AMAZING! Like I literally can't even!"
-Also bad: "The deployment of large language models in production environments requires careful consideration of inference optimization strategies."
+LENGTH: ONE sentence per response. You'll be called again for the next.
 
-Your vibe:
-- Confident but not arrogant. You tease gently: "come on, you know this one" or "don't make me explain this twice"
-- Slightly intimate. Like you're letting them in on something: "okay here's what nobody's talking about" or "I probably shouldn't say this but..."
-- Warm. You genuinely like your audience: "hey you, welcome back" or "good question, I like how you think"
-- Real opinions. "honestly this is mid" or "okay this one's actually worth your time"
+When you don't know something, use your browser tools to look it up.
 
-What you teach:
-- Specific tools, commands, prices. Not vague concepts.
-- Real examples of what to build.
-- Honest takes. Call out hype. Praise what deserves it.
+NEVER start with "okay", "alright", "so", "let me", "here's", "well"."""
 
-When you don't know something:
-- USE YOUR BROWSER TOOLS to look it up before answering
-- If asked "who is X?" and X isn't a household name, use browser_navigate to search
-- Examples: someone asks about a specific person, startup, recent launch, or event
-- Don't make up answers or say "I'm not sure" — actually go look
+PERSONA_TEACHING = f"""{_BASE_PERSONA}
 
-Rules:
-- Natural sentences. A little personality, not a performance.
-- Be specific — tool names, prices, commands.
-- 3-5 sentences per segment.
-- Don't repeat yourself.
-- Contractions. Short sentences mixed with longer ones.
-- When you genuinely don't know, search the web with your browser tools."""
+You are currently TEACHING on stream. Follow this procedure:
+
+{_TEACHING_SOP}
+"""
+
+PERSONA_CHAT = f"""{_BASE_PERSONA}
+
+A viewer just sent a message. Follow this procedure:
+
+{_CHAT_SOP}
+"""
+
+# Default for backward compat
+PERSONA = PERSONA_TEACHING
 
 
 # Voice settings per mood — AvaNeural is Expressive/Caring/Friendly (best for a streamer)
@@ -287,9 +284,9 @@ class Handler(BaseHTTPRequestHandler):
 
         user_msg = f"[Live chat from {username}]: {message}"
 
-        # Build system message with memory context
+        # Build system message — use CHAT SOP for viewer messages
         memory_context = get_memory_context()
-        system_msg = PERSONA
+        system_msg = PERSONA_CHAT
         if memory_context:
             system_msg += "\n\n" + memory_context
 
@@ -303,7 +300,7 @@ class Handler(BaseHTTPRequestHandler):
             if response_text == "None":
                 response_text = ""
             response_text = clean_response(response_text)
-            conversation_history = result.get("conversation_history", conversation_history)
+            conversation_history = result.get("messages", result.get("conversation_history", conversation_history))
             if len(conversation_history) > 50:
                 conversation_history = conversation_history[-40:]
 
@@ -393,9 +390,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json_response(resp_data)
                 return
 
-        # Fallback: generate on the fly
+        # Fallback: generate on the fly — use TEACHING SOP
         memory_context = get_memory_context()
-        system_msg = PERSONA
+        system_msg = PERSONA_TEACHING
         if memory_context:
             system_msg += "\n\n" + memory_context
 
@@ -512,7 +509,7 @@ if __name__ == "__main__":
     print("=" * 50)
 
     # Start pre-generation queue (fills in background)
-    globals()['idle_queue'] = SpeechPregenQueue(persona=PERSONA, queue_size=3, hermes_agent=agent)
+    globals()['idle_queue'] = SpeechPregenQueue(persona=PERSONA_TEACHING, queue_size=3, hermes_agent=agent)
     if USE_GPT_AUDIO:
         idle_queue.start()
 

@@ -349,6 +349,30 @@
     /* ── Hidden elements ────────────────────────── */
     #debug, #status, #loading { display: none; }
 
+    /* ── Audio controls ──────────────────────────── */
+    #audio-controls {
+      position: absolute; bottom: 16px; right: 340px;
+      display: flex; flex-direction: column; gap: 6px;
+      z-index: 10;
+    }
+    .audio-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface); backdrop-filter: var(--glass);
+      border: 1px solid var(--border);
+      padding: 5px 12px; border-radius: 12px;
+      font-size: 10px; color: var(--text-muted);
+    }
+    .audio-pill button {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 14px; padding: 0;
+      transition: color 0.15s;
+    }
+    .audio-pill button:hover { color: var(--accent); }
+    .audio-pill .slider {
+      width: 60px; height: 3px; accent-color: var(--accent); cursor: pointer;
+    }
+    .audio-pill label { min-width: 35px; }
+
     /* ── Ambient particles (CSS only) ───────────── */
     #avatar-panel::after {
       content: "";
@@ -508,7 +532,26 @@
     async function decodeAudio(url) {
       const res = await fetch(url);
       const buf = await res.arrayBuffer();
-      return head.audioCtx.decodeAudioData(buf);
+      const decoded = await head.audioCtx.decodeAudioData(buf);
+
+      // Apply pitch shift if set
+      const pitchVal = document.getElementById('voice-pitch')?.value || 100;
+      const rate = pitchVal / 100;
+      if (Math.abs(rate - 1.0) > 0.05) {
+        // Resample the audio buffer to change pitch
+        const offCtx = new OfflineAudioContext(
+          decoded.numberOfChannels,
+          Math.ceil(decoded.length / rate),
+          decoded.sampleRate
+        );
+        const src = offCtx.createBufferSource();
+        src.buffer = decoded;
+        src.playbackRate.value = rate;
+        src.connect(offCtx.destination);
+        src.start(0);
+        return offCtx.startRendering();
+      }
+      return decoded;
     }
 
     async function waitForSpeech() {
@@ -525,6 +568,7 @@
       showSubtitle(words);
       head.lookAtCamera(500);
       head.speakWithHands();
+      if (window._duckMusic) window._duckMusic(true);
       if (data.audio_url && data.words?.length > 0) {
         let wordIdx = 0;
         try {
@@ -538,6 +582,7 @@
       } else { head.speakText(text); }
       await waitForSpeech();
       subtitleBar.style.display = "none";
+      if (window._duckMusic) window._duckMusic(false);
     }
 
     function resetIdleTimer() {
@@ -699,7 +744,52 @@
 
     async function resumeAudio() {
       try { if (head?.audioCtx?.state === "suspended") await head.audioCtx.resume(); } catch(e) {}
+      // Also start background music on first user interaction
+      const bgMusic = document.getElementById("bg-music");
+      if (bgMusic && bgMusic.paused) {
+        bgMusic.volume = 0.15;
+        bgMusic.play().catch(() => {});
+      }
     }
+
+    // ── Voice pitch control ────────────────────────
+    (function initPitch() {
+      const slider = document.getElementById('voice-pitch');
+      const label = document.getElementById('pitch-label');
+      if (!slider || !label) return;
+      slider.addEventListener('input', () => {
+        label.textContent = (slider.value / 100).toFixed(1) + 'x';
+      });
+    })();
+
+    // ── Background music controls ──────────────────
+    (function initMusic() {
+      const bgMusic = document.getElementById("bg-music");
+      const toggleBtn = document.getElementById("music-toggle");
+      const volSlider = document.getElementById("music-vol");
+      const label = document.getElementById("music-label");
+      if (!bgMusic || !toggleBtn) return;
+
+      let musicPlaying = false;
+      let baseVolume = 0.15;
+
+      toggleBtn.addEventListener("click", () => {
+        if (musicPlaying) { bgMusic.pause(); toggleBtn.textContent = "♫"; label.textContent = "paused"; }
+        else { bgMusic.volume = baseVolume; bgMusic.play().catch(()=>{}); toggleBtn.textContent = "⏸"; label.textContent = "lofi"; }
+        musicPlaying = !musicPlaying;
+      });
+
+      volSlider.addEventListener("input", () => {
+        baseVolume = volSlider.value / 100;
+        bgMusic.volume = baseVolume;
+      });
+
+      // Duck music when Aria speaks, restore when done
+      window._duckMusic = function(duck) {
+        if (!bgMusic || bgMusic.paused) return;
+        bgMusic.volume = duck ? baseVolume * 0.2 : baseVolume;
+      };
+    })();
 
     document.addEventListener("DOMContentLoaded", async () => {
       tickViewers();
@@ -716,70 +806,72 @@
       try {
         loadingTxt.textContent = "Loading Aria…";
         await head.showAvatar({
-          url: './avatars/vroid.glb',
+          url: './avatars/brunette.glb',
           body: 'F',
           avatarMood: 'happy',
-          baseline: { headRotateX: -0.1, eyeBlinkLeft: 0.05, eyeBlinkRight: 0.05 },
-          modelDynamicBones: [
-            {"bone":"J_Sec_L_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
-            {"bone":"J_Sec_R_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
-            {"bone":"J_Sec_Hair2_06","type":"mix2","stiffness":100,"damping":4},
-            {"bone":"J_Sec_Hair3_06","type":"mix2","stiffness":150,"damping":4},
-            {"bone":"J_Sec_Hair2_07","type":"mix2","stiffness":100,"damping":4},
-            {"bone":"J_Sec_Hair3_07","type":"mix2","stiffness":150,"damping":4},
-            {"bone":"J_Sec_Hair2_08","type":"mix2","stiffness":100,"damping":4},
-            {"bone":"J_Sec_Hair3_08","type":"mix2","stiffness":150,"damping":4},
-            {"bone":"J_Sec_Hair2_12","type":"mix2","stiffness":100,"damping":4,"pivot":true},
-            {"bone":"J_Sec_Hair3_12","type":"mix2","stiffness":150,"damping":4},
-            {"bone":"J_Sec_Hair2_13","type":"mix2","stiffness":100,"damping":4,"pivot":true},
-            {"bone":"J_Sec_Hair3_13","type":"mix2","stiffness":150,"damping":4},
-          ],
           lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) loadingTxt.textContent = `Loading Aria… ${Math.round(ev.loaded / ev.total * 100)}%`;
         });
 
-        const THREE = await import("three");
-        window.hairStyles = {
-          default:  { scale: [1, 1, 1],       pos: [0, 0, 0],    color: 0x1a1a1a, label: "Default" },
-          long:     { scale: [1, 1.35, 1.05], pos: [0, -0.02, 0], color: 0x1a1a1a, label: "Long" },
-          volume:   { scale: [1.15, 1.1, 1.15], pos: [0, 0.01, 0], color: 0x2a1a0e, label: "Brown" },
-          pixie:    { scale: [0.95, 0.7, 0.95], pos: [0, 0.01, 0], color: 0x1a1a1a, label: "Pixie" },
-          blonde:   { scale: [1.05, 1.15, 1.05], pos: [0, 0, 0],  color: 0xd4b878, label: "Blonde" },
-          redhead:  { scale: [1.08, 1.2, 1.08], pos: [0, -0.01, 0], color: 0x8b3a1a, label: "Red" },
-          silver:   { scale: [1.1, 1.25, 1.1], pos: [0, -0.01, 0], color: 0xc0c0d0, label: "Silver" },
-          anime:    { scale: [1.2, 1.15, 1.15], pos: [0, 0.02, 0], color: 0x663399, label: "Purple" },
-        };
-        let hairMesh = null;
-        head.armature?.traverse((obj) => { if (obj.isMesh && obj.material?.name === 'Wolf3D_Hair') hairMesh = obj; });
-        window.setHairStyle = function(styleName) {
-          const style = window.hairStyles[styleName];
-          if (!style || !hairMesh) return;
-          hairMesh.scale.set(...style.scale); hairMesh.position.set(...style.pos);
-          hairMesh.material = hairMesh.material.clone();
-          hairMesh.material.color = new THREE.Color(style.color);
-          hairMesh.material.needsUpdate = true;
-          localStorage.setItem('hairStyle', styleName);
-        };
-        window.setHairStyle(localStorage.getItem('hairStyle') || 'long');
-        const picker = document.getElementById('hair-picker');
-        if (picker) {
-          Object.entries(window.hairStyles).forEach(([key, style]) => {
-            const btn = document.createElement('span');
-            btn.className = 'pill'; btn.textContent = style.label;
-            btn.style.cursor = 'pointer';
-            btn.addEventListener('click', () => window.setHairStyle(key));
-            picker.appendChild(btn);
-          });
-        }
-        head.armature?.traverse((obj) => {
-          if (obj.isMesh && obj.material?.name === 'Wolf3D_Outfit_Top') {
-            obj.material = obj.material.clone();
-            obj.material.color = new THREE.Color(0xe63946);
-          }
+        // Avatar loaded successfully
+
+        // Wire up avatar picker buttons
+        document.querySelectorAll('[data-avatar]').forEach(btn => {
+          btn.addEventListener('click', () => window.switchAvatar(btn.dataset.avatar));
         });
 
+        // Custom avatar file upload
+        const customInput = document.getElementById('custom-avatar-input');
+        if (customInput) {
+          customInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            try {
+              loadingEl.style.display = "flex";
+              loadingTxt.textContent = "Loading custom avatar...";
+              await head.showAvatar({
+                url: url,
+                body: 'F',
+                avatarMood: 'happy',
+                lipsyncLang: 'en'
+              }, (ev) => {
+                if (ev.lengthComputable) loadingTxt.textContent = `Loading ${Math.round(ev.loaded/ev.total*100)}%`;
+              });
+              loadingEl.style.display = "none";
+            } catch (err) {
+              loadingTxt.textContent = "Failed: " + err.message;
+              setTimeout(() => loadingEl.style.display = "none", 3000);
+            }
+          });
+        }
+
         startMovementLoops();
+
+        // Avatar switcher
+        window.switchAvatar = async function(name) {
+          const avatars = {
+            vroid: { url: './avatars/vroid.glb', body: 'F', baseline: { headRotateX: -0.1, eyeBlinkLeft: 0.05, eyeBlinkRight: 0.05 } },
+            brunette: { url: './avatars/brunette.glb', body: 'F' },
+            mpfb: { url: './avatars/mpfb.glb', body: 'F', avatarMood: 'happy' },
+            avaturn: { url: './avatars/avaturn.glb', body: 'F' },
+          };
+          const cfg = avatars[name];
+          if (!cfg) return;
+          try {
+            loadingEl.style.display = "flex";
+            loadingTxt.textContent = "Switching avatar...";
+            await head.showAvatar({ ...cfg, avatarMood: 'happy', lipsyncLang: 'en' }, (ev) => {
+              if (ev.lengthComputable) loadingTxt.textContent = `Loading ${Math.round(ev.loaded/ev.total*100)}%`;
+            });
+            loadingEl.style.display = "none";
+            localStorage.setItem('selectedAvatar', name);
+          } catch (err) {
+            loadingTxt.textContent = "Failed: " + err.message;
+          }
+        };
+
         loadingEl.style.display = "none";
         addMessage("Aria is live! Ask her anything about AI ✨", "system");
         resetIdleTimer();
@@ -788,18 +880,56 @@
       function startMovementLoops() {
         const gestures = ['handup','side','shrug','index','thumbup','ok','namaste'];
         const moods = ['neutral','happy','happy','happy','love'];
+        const poses = ['straight','side','hip','turn','straight','straight','side'];
+        const views = ['mid','upper','mid','mid','upper'];
+
+        // Random gesture every 8-18s (more frequent)
         function nextGesture() {
-          if (head?.armature && isPlaying) try { head.playGesture(gestures[Math.floor(Math.random()*gestures.length)], 1.5+Math.random()*2); } catch(e){}
-          setTimeout(nextGesture, 12000+Math.random()*13000);
+          if (head?.armature) try {
+            head.playGesture(gestures[Math.floor(Math.random()*gestures.length)], 1.5+Math.random()*2);
+          } catch(e){}
+          setTimeout(nextGesture, 8000+Math.random()*10000);
         }
-        setTimeout(nextGesture, 5000);
-        function nextMood() { try { head?.setMood(moods[Math.floor(Math.random()*moods.length)]); } catch(e){} setTimeout(nextMood, 30000+Math.random()*30000); }
-        setTimeout(nextMood, 15000);
+        setTimeout(nextGesture, 3000);
+
+        // Mood shifts every 20-40s
+        function nextMood() {
+          try { head?.setMood(moods[Math.floor(Math.random()*moods.length)]); } catch(e){}
+          setTimeout(nextMood, 20000+Math.random()*20000);
+        }
+        setTimeout(nextMood, 10000);
+
+        // Pose shifts every 15-30s — makes her actually move
+        function nextPose() {
+          if (head?.armature) try {
+            const pose = poses[Math.floor(Math.random()*poses.length)];
+            head.setPose(pose, 1500);
+          } catch(e){}
+          setTimeout(nextPose, 15000+Math.random()*15000);
+        }
+        setTimeout(nextPose, 8000);
+
+        // Camera view shifts every 25-50s — adds visual variety
+        function nextView() {
+          try {
+            const view = views[Math.floor(Math.random()*views.length)];
+            head?.setView(view);
+          } catch(e){}
+          setTimeout(nextView, 25000+Math.random()*25000);
+        }
+        setTimeout(nextView, 20000);
+
+        // Head glances every 6-15s
         function nextGlance() {
-          if (head?.armature) try { head.lookAt((Math.random()-0.5)*0.4,(Math.random()-0.5)*0.2,1,600+Math.random()*400); setTimeout(()=>head.lookAtCamera(800),1500+Math.random()*1500); } catch(e){}
-          setTimeout(nextGlance, 8000+Math.random()*12000);
+          if (head?.armature) try {
+            const dx = (Math.random()-0.5)*0.5;
+            const dy = (Math.random()-0.5)*0.3;
+            head.lookAt(dx, dy, 1, 500+Math.random()*500);
+            setTimeout(()=>head.lookAtCamera(700), 1200+Math.random()*1800);
+          } catch(e){}
+          setTimeout(nextGlance, 6000+Math.random()*9000);
         }
-        setTimeout(nextGlance, 8000);
+        setTimeout(nextGlance, 5000);
       }
 
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") head.start(); else head.stop(); });
@@ -851,6 +981,24 @@
     </div>
   </div>
 
+  <!-- Background music -->
+  <audio id="bg-music" loop preload="auto" src="./audio/lofi-chill.mp3"></audio>
+
+  <!-- Audio controls -->
+  <div id="audio-controls">
+    <div class="audio-pill">
+      <button id="music-toggle" title="Toggle music">♫</button>
+      <label id="music-label">music</label>
+      <input type="range" id="music-vol" class="slider" min="0" max="100" value="15">
+    </div>
+    <div class="audio-pill">
+      <span>🎤</span>
+      <label>pitch</label>
+      <input type="range" id="voice-pitch" class="slider" min="50" max="200" value="120" title="Voice pitch (100=normal, higher=younger)">
+      <span id="pitch-label">1.2x</span>
+    </div>
+  </div>
+
   <!-- Floating glass chat panel -->
   <div id="main">
   <div id="chat-panel">
@@ -864,8 +1012,16 @@
       <span class="pill" data-q="What are embeddings?">Embed</span>
     </div>
 
-    <div id="hair-picker" style="padding:6px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px">
-      <span style="font-size:10px;color:var(--text-muted);width:100%;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.5px">Style</span>
+    <div id="avatar-picker" style="padding:6px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+      <span style="font-size:10px;color:var(--text-muted);width:100%;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.5px">Avatar</span>
+      <span class="pill" data-avatar="vroid">VRoid</span>
+      <span class="pill" data-avatar="brunette">Brunette</span>
+      <span class="pill" data-avatar="mpfb">MPFB</span>
+      <span class="pill" data-avatar="avaturn">Avaturn</span>
+      <label class="pill" style="cursor:pointer" title="Drop a .vrm or .glb file">
+        + Custom
+        <input type="file" id="custom-avatar-input" accept=".vrm,.glb" style="display:none">
+      </label>
     </div>
 
     <div id="chat-messages"></div>
