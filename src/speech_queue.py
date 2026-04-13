@@ -168,44 +168,30 @@ class SpeechPregenQueue:
                     pass
 
                 if topic:
-                    # Generate speech about the researched topic
+                    # Generate ONE complete monologue about the topic
                     talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
-                    recent_said = "\n".join(f"- {t}" for t in self.recent_topics[-5:])
 
                     prompt = (
-                        f"[You're live streaming about AI news. Present this topic to your audience:]\n\n"
+                        f"[You're live streaming about AI news. Present this topic as ONE complete segment:]\n\n"
                         f"TOPIC: {topic.get('topic', '')}\n"
                         f"SUMMARY: {topic.get('summary', '')}\n"
                         f"WHY IT MATTERS: {topic.get('why_interesting', '')}\n"
                         f"TALKING POINTS:\n{talking_points}\n\n"
-                        f"[Explain this excitedly like you just discovered it. "
-                        f"Break it down so anyone can understand. "
-                        f"2-3 sentences per segment. Be enthusiastic and educational. "
-                        f"Use analogies if helpful.]"
+                        f"[Give a complete, flowing explanation in 4-6 sentences. "
+                        f"Introduce it, explain it with an analogy, say why it matters, "
+                        f"and end with your take or a question for chat. "
+                        f"This must be ONE complete, self-contained segment. "
+                        f"Do NOT stop mid-sentence.]"
                     )
-                    if recent_said:
-                        prompt += f"\n\nYou already said (transition smoothly, don't repeat):\n{recent_said}"
 
-                    # Generate multiple self-contained segments for this topic
-                    segment_prompts = [
-                        prompt,  # Segment 1: introduce the topic
-                        (f"[You just introduced '{topic.get('topic', '')}' to your audience. "
-                         f"Now go DEEPER — explain WHY this matters, give a concrete example, "
-                         f"or use an analogy to make it click. "
-                         f"Start with a complete new sentence. 2-3 full sentences.]"),
-                        (f"[Wrap up your take on '{topic.get('topic', '')}'. "
-                         f"Share your personal opinion, a prediction, or ask chat what they think. "
-                         f"Start with a complete new sentence. End cleanly. 2-3 full sentences.]"),
-                    ]
-                    for segment, seg_prompt in enumerate(segment_prompts):
-                        result = generate_gpt_audio(seg_prompt, system_prompt=self.persona)
-                        if result:
-                            with self.lock:
-                                self.queue.append(result)
-                            self.recent_topics.append(result["response"][:100])
-                            print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
-                        if not self._running:
-                            return
+                    result = generate_gpt_audio(prompt, system_prompt=self.persona)
+                    if result:
+                        with self.lock:
+                            self.queue.append(result)
+                        self.recent_topics.append(result["response"][:100])
+                        print(f"[PregenQueue] Buffered ({len(self.queue)}/{self.queue_size}): {result['response'][:60]}...")
+                    if not self._running:
+                        return
 
                 else:
                     # No researched topic — continue natural monologue
