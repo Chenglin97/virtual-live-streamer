@@ -246,17 +246,48 @@ class SpeechPregenQueue:
                     )
                     log_label = topic.get('topic', '?')[:50]
                 else:
-                    recent_context = ""
-                    if self.recent_topics:
-                        recent_context = "\n\nWhat you've said so far (CONTINUE naturally):\n"
-                        recent_context += "\n".join(f"- {t}" for t in self.recent_topics[-5:])
+                    # Pick a fresh fallback topic, avoiding what we just said
+                    import random
+                    fallback_topics = [
+                        "vector databases (pinecone vs chroma vs weaviate, real prices and tradeoffs)",
+                        "fine-tuning with LoRA — when it actually beats RAG and when it doesn't",
+                        "the cheapest way to run inference at scale right now",
+                        "prompt caching tricks that cut OpenAI bills by 90%",
+                        "why most RAG systems are bad and the 3 things that fix them",
+                        "the latest open-source coding model worth using",
+                        "evaluating LLMs without spending hundreds on labeled data",
+                        "structured outputs: JSON mode, function calling, or constrained decoding?",
+                        "long context windows — when 1M tokens is a trap",
+                        "embedding models compared (text-embedding-3 vs Cohere vs open-source)",
+                        "real cost of running Llama 70B vs just paying OpenAI",
+                        "agent observability — Langfuse vs Helicone vs build-your-own",
+                        "voice AI stack right now — best STT, best TTS, real latency numbers",
+                        "image generation in 2026 — Flux vs SDXL vs commercial APIs",
+                        "synthetic data for training small models that beat GPT-4",
+                        "the AI tooling nobody talks about but everyone should use",
+                        "MCP servers — what they do, which ones are actually useful",
+                        "deploying LLMs on Modal vs Replicate vs RunPod (real costs)",
+                        "why guardrails are mostly theater and what actually works",
+                        "the surprising thing about Claude vs GPT vs Gemini for coding",
+                    ]
+                    avoid = set()
+                    for t in self.recent_topics[-15:]:
+                        for word in t.lower().split():
+                            if len(word) > 4:
+                                avoid.add(word)
+                    fresh = [t for t in fallback_topics if not any(w in t.lower() for w in avoid if len(w) > 4)]
+                    chosen = random.choice(fresh) if fresh else random.choice(fallback_topics)
+
+                    avoid_list = "\n".join(f"- {t[:80]}" for t in self.recent_topics[-10:])
                     user_msg = (
-                        f"[Live streaming about AI. Continue your monologue. "
-                        f"Share a thought, teach a concept, give a hot take, "
-                        f"or tell a relatable story. 2-3 sentences.]"
-                        f"{recent_context}"
+                        f"[Live streaming. Pick a SPECIFIC angle on this AI topic and talk about it:]\n"
+                        f"SUGGESTED TOPIC: {chosen}\n\n"
+                        f"DO NOT repeat anything from these recent things you said:\n{avoid_list}\n\n"
+                        f"Talk about something COMPLETELY DIFFERENT. Switch topics — don't continue the previous thread. "
+                        f"Be specific with tool names, prices, real numbers. "
+                        f"3-5 sentences. Sound like a real person."
                     )
-                    log_label = "free monologue"
+                    log_label = f"fallback: {chosen[:40]}"
 
                 # Step 1: Hermes Agent generates the text (with personality, memory, tools)
                 response_text = ""
