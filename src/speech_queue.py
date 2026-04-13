@@ -219,18 +219,38 @@ class SpeechPregenQueue:
                 current_size = len(self.queue)
 
             if current_size < self.queue_size:
-                # Try to get a researched topic first
-                topic = None
+                # Priority 1: Get next segment from curriculum (long-form lesson)
+                curriculum_segment = None
                 try:
-                    from research_agent import pop_topic, queue_size as rq_size
-                    topic = pop_topic()
-                    if topic:
-                        print(f"[PregenQueue] Speaking about: {topic.get('topic', '?')}")
+                    from curriculum_agent import get_next_segment
+                    curriculum_segment = get_next_segment()
                 except ImportError:
                     pass
 
+                # Priority 2: Get a researched current-events topic
+                topic = None
+                if not curriculum_segment:
+                    try:
+                        from research_agent import pop_topic
+                        topic = pop_topic()
+                        if topic:
+                            print(f"[PregenQueue] Speaking about: {topic.get('topic', '?')}")
+                    except ImportError:
+                        pass
+
                 # Build the prompt for Hermes
-                if topic:
+                if curriculum_segment:
+                    # Curriculum segment — pre-written, just speak it
+                    user_msg = (
+                        f"[You are mid-lecture on: {curriculum_segment['module']} — "
+                        f"Lesson: {curriculum_segment['lesson']}]\n\n"
+                        f"Say this exact thing in your own warm, natural voice:\n\n"
+                        f"{curriculum_segment['text']}\n\n"
+                        f"Keep the meaning intact. You can rephrase slightly for natural delivery, "
+                        f"but stay focused on the same point. 2-4 sentences."
+                    )
+                    log_label = f"[course] {curriculum_segment['lesson'][:40]}"
+                elif topic:
                     talking_points = "\n".join(f"- {p}" for p in topic.get("talking_points", []))
                     how_to = topic.get('how_to_use', '')
                     user_msg = (

@@ -46,12 +46,19 @@ conversation_history = []
 # ─────────────────────────────────────────────────────
 # GPT-4o Audio + Pre-generation queue
 # ─────────────────────────────────────────────────────
-# Add src/ back to path temporarily for speech_queue import
-sys.path.insert(0, str(Path(__file__).parent))
-from speech_queue import generate_gpt_audio, SpeechPregenQueue
-from research_agent import ResearchAgent
-if str(Path(__file__).parent) in sys.path:
-    sys.path.remove(str(Path(__file__).parent))
+# Import our src modules — re-add path before each import since modules remove it
+def _src_import(name):
+    src_path = str(Path(__file__).parent)
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+    import importlib
+    return importlib.import_module(name)
+
+_sq = _src_import("speech_queue")
+generate_gpt_audio = _sq.generate_gpt_audio
+SpeechPregenQueue = _sq.SpeechPregenQueue
+ResearchAgent = _src_import("research_agent").ResearchAgent
+CurriculumAgent = _src_import("curriculum_agent").CurriculumAgent
 
 USE_GPT_AUDIO = True  # Use GPT-4o for voice (set False to use Edge-TTS)
 idle_queue = None  # Initialized at startup
@@ -509,6 +516,10 @@ if __name__ == "__main__":
     if USE_GPT_AUDIO:
         idle_queue.start()
 
+    # Start curriculum agent (writes a full course in the background)
+    curriculum = CurriculumAgent(write_interval=600, target_buffer=80)
+    curriculum.start()
+
     # Start research sub-agent (finds AI news in background)
     researcher = ResearchAgent(research_interval=300)  # research every 5 min
     researcher.start()
@@ -520,4 +531,5 @@ if __name__ == "__main__":
         print("\nShutting down...")
         idle_queue.stop()
         researcher.stop()
+        curriculum.stop()
         server.shutdown()
