@@ -35,23 +35,16 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": text})
 
-    # Voice acting instructions for natural, human-sounding speech
+    # Voice style — calm, clear, not trying too hard
     if messages and messages[0]["role"] != "system":
         messages.insert(0, {
             "role": "system",
             "content": (
-                "You are speaking out loud on a live stream. This is SPOKEN AUDIO, not written text.\n\n"
-                "Voice style:\n"
-                "- Speak like you're talking to a friend sitting next to you, not giving a presentation\n"
-                "- Use natural fillers: 'okay so', 'like', 'honestly', 'you know what', 'right?', 'I mean'\n"
-                "- Pause naturally between thoughts — don't rush from point to point\n"
-                "- React emotionally: gasp at surprising things, laugh at funny things, get genuinely excited\n"
-                "- Vary your energy — sometimes fast and excited, sometimes slow and thoughtful\n"
-                "- Use contractions: 'it's', 'don't', 'can't', 'that's', 'you're', never formal full forms\n"
-                "- Trail off sometimes and then come back: 'so the thing is... actually wait, let me back up'\n"
-                "- Address the audience directly: 'chat', 'you guys', 'anyone here tried this?'\n\n"
-                "NEVER sound like you're reading a blog post or textbook. Sound like a real person talking.\n"
-                "Keep to 3-5 sentences. Always finish every sentence completely."
+                "This is spoken audio for a live stream. Be calm and clear.\n"
+                "Talk normally. Don't overact. Don't force excitement or fillers.\n"
+                "Just explain things plainly like a chill, smart person would.\n"
+                "Use short sentences. Be direct. Skip the hype.\n"
+                "3-5 sentences max. Finish every sentence."
             )
         })
 
