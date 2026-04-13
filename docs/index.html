@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Virtual Live Streamer — Architecture & BotLearn Integration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --ink:#e4e2f0;
+  --ink-muted:#8884a8;
+  --ink-dim:#4e4a6a;
+  --bg:#08070e;
+  --surface:#0f0e18;
+  --surface2:#16142a;
+  --accent:#9b7cfa;
+  --accent2:#42e8c5;
+  --accent3:#f472b6;
+  --glow:rgba(155,124,250,.12);
+  --glow2:rgba(66,232,197,.10);
+  --serif:"Instrument Serif",Georgia,serif;
+  --sans:"DM Sans",system-ui,sans-serif;
+  --mono:"JetBrains Mono",monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  line-height:1.65;
+  overflow-x:hidden;
+}
+
+/* ── Grain overlay ─────────────────────── */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:.45;
+}
+
+/* ── Utility ───────────────────────────── */
+.container{max-width:1120px;margin:0 auto;padding:0 28px}
+.fade-in{opacity:0;transform:translateY(32px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* ── Hero ──────────────────────────────── */
+.hero{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;text-align:center;
+  padding:80px 28px;
+}
+
+.hero::before{
+  content:"";position:absolute;
+  width:800px;height:800px;
+  top:50%;left:50%;transform:translate(-50%,-55%);
+  background:radial-gradient(circle,rgba(155,124,250,.08) 0%,rgba(66,232,197,.04) 40%,transparent 70%);
+  pointer-events:none;
+}
+
+/* Floating orbs */
+.orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:drift 20s ease-in-out infinite alternate}
+.orb-1{width:400px;height:400px;background:rgba(155,124,250,.06);top:10%;left:-5%;animation-delay:0s}
+.orb-2{width:300px;height:300px;background:rgba(66,232,197,.05);bottom:15%;right:-5%;animation-delay:-7s}
+.orb-3{width:200px;height:200px;background:rgba(244,114,182,.04);top:60%;left:60%;animation-delay:-14s}
+@keyframes drift{0%{transform:translate(0,0)}100%{transform:translate(40px,-30px)}}
+
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--surface2);border:1px solid rgba(155,124,250,.2);
+  border-radius:100px;padding:6px 16px 6px 8px;
+  font-size:12px;font-weight:500;letter-spacing:.5px;
+  color:var(--accent);text-transform:uppercase;
+  margin-bottom:28px;
+}
+.hero-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);box-shadow:0 0 12px var(--accent2);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.hero h1{
+  font-family:var(--serif);
+  font-size:clamp(48px,8vw,96px);
+  font-weight:400;
+  line-height:1.05;
+  letter-spacing:-.02em;
+  margin-bottom:24px;
+}
+.hero h1 em{font-style:italic;color:var(--accent)}
+
+.hero-sub{
+  font-size:clamp(16px,2vw,20px);
+  color:var(--ink-muted);
+  max-width:600px;margin:0 auto 40px;
+  line-height:1.6;
+}
+
+.hero-cta{
+  display:inline-flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,var(--accent),#7c5ce0);
+  color:#fff;font-weight:600;font-size:15px;
+  padding:14px 32px;border-radius:12px;border:none;
+  text-decoration:none;cursor:pointer;
+  transition:transform .2s var(--ease),box-shadow .2s var(--ease);
+  box-shadow:0 4px 24px rgba(155,124,250,.3);
+}
+.hero-cta:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(155,124,250,.4)}
+.hero-cta svg{width:18px;height:18px}
+
+/* ── Section titles ────────────────────── */
+section{padding:120px 0}
+
+.section-label{
+  font-family:var(--mono);font-size:12px;font-weight:500;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:12px;
+}
+
+.section-title{
+  font-family:var(--serif);
+  font-size:clamp(32px,5vw,56px);
+  font-weight:400;line-height:1.15;
+  margin-bottom:20px;
+}
+
+.section-desc{
+  font-size:17px;color:var(--ink-muted);
+  max-width:560px;margin-bottom:56px;
+}
+
+/* ── Architecture ──────────────────────── */
+.arch-section{background:var(--surface);border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04)}
+
+.arch-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  position:relative;
+}
+
+/* Architecture - visual flow */
+.flow{
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  padding:20px 0;
+}
+
+.flow-row{
+  display:flex;align-items:center;justify-content:center;
+  gap:16px;flex-wrap:wrap;width:100%;
+}
+
+.node{
+  position:relative;
+  background:var(--surface2);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px;
+  padding:20px 24px;
+  min-width:180px;
+  text-align:center;
+  transition:border-color .3s var(--ease),box-shadow .3s var(--ease);
+}
+.node:hover{border-color:rgba(155,124,250,.3);box-shadow:0 0 32px var(--glow)}
+
+.node-icon{
+  font-size:28px;margin-bottom:8px;display:block;
+}
+.node-label{
+  font-family:var(--mono);font-size:13px;font-weight:500;
+  color:var(--ink);margin-bottom:4px;
+}
+.node-desc{
+  font-size:12px;color:var(--ink-dim);line-height:1.4;
+}
+
+.node--accent{border-color:rgba(155,124,250,.25);background:linear-gradient(135deg,rgba(155,124,250,.08),var(--surface2))}
+.node--accent2{border-color:rgba(66,232,197,.25);background:linear-gradient(135deg,rgba(66,232,197,.06),var(--surface2))}
+.node--accent3{border-color:rgba(244,114,182,.2);background:linear-gradient(135deg,rgba(244,114,182,.06),var(--surface2))}
+
+.arrow{
+  display:flex;align-items:center;justify-content:center;
+  padding:8px 0;color:var(--ink-dim);font-size:22px;
+  opacity:.5;
+}
+.arrow-h{padding:0 4px}
+.arrow-label{
+  font-family:var(--mono);font-size:10px;color:var(--ink-dim);
+  letter-spacing:1px;text-transform:uppercase;
+  margin:0 8px;
+}
+
+/* ── Features ──────────────────────────── */
+.feat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:20px;
+}
+
+.feat{
+  background:var(--surface);
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:16px;
+  padding:28px;
+  transition:border-color .3s var(--ease),transform .3s var(--ease);
+}
+.feat:hover{border-color:rgba(155,124,250,.2);transform:translateY(-4px)}
+
+.feat-icon{
+  width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--glow),var(--glow2));
+  font-size:22px;
+  margin-bottom:16px;
+}
+
+.feat h3{font-size:15px;font-weight:600;margin-bottom:6px}
+.feat p{font-size:13px;color:var(--ink-muted);line-height:1.5}
+
+/* ── BotLearn connection ───────────────── */
+.botlearn-section{position:relative}
+
+.botlearn-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:40px;
+  align-items:start;
+}
+
+@media(max-width:768px){.botlearn-grid{grid-template-columns:1fr}}
+
+.bl-card{
+  background:var(--surface);
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:20px;
+  padding:36px;
+}
+
+.bl-card h3{
+  font-family:var(--serif);font-size:24px;
+  margin-bottom:12px;font-weight:400;
+}
+
+.bl-card p{font-size:14px;color:var(--ink-muted);line-height:1.6;margin-bottom:16px}
+
+.bl-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+.bl-list li{
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:13px;color:var(--ink-muted);line-height:1.5;
+}
+.bl-list li::before{
+  content:"";flex-shrink:0;
+  width:6px;height:6px;margin-top:7px;
+  border-radius:50%;
+  background:var(--accent2);
+  box-shadow:0 0 8px var(--accent2);
+}
+
+.skill-tree{
+  font-family:var(--mono);font-size:13px;
+  color:var(--ink-muted);line-height:2;
+  background:var(--bg);border:1px solid rgba(255,255,255,.05);
+  border-radius:12px;padding:24px;
+}
+.skill-tree .dir{color:var(--accent)}
+.skill-tree .file{color:var(--ink-dim)}
+.skill-tree .hl{color:var(--accent2)}
+
+/* ── Tech stack ────────────────────────── */
+.stack-row{
+  display:flex;flex-wrap:wrap;gap:12px;
+  justify-content:center;
+  margin-top:40px;
+}
+
+.badge{
+  display:inline-flex;align-items:center;gap:7px;
+  background:var(--surface2);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:100px;
+  padding:8px 18px;
+  font-family:var(--mono);font-size:12px;font-weight:500;
+  color:var(--ink-muted);
+  transition:border-color .2s var(--ease),color .2s var(--ease);
+}
+.badge:hover{border-color:rgba(155,124,250,.3);color:var(--ink)}
+.badge .bd{width:8px;height:8px;border-radius:50%}
+.bd-purple{background:var(--accent)}
+.bd-teal{background:var(--accent2)}
+.bd-pink{background:var(--accent3)}
+.bd-blue{background:#60a5fa}
+.bd-orange{background:#fb923c}
+.bd-green{background:#4ade80}
+
+/* ── Footer ────────────────────────────── */
+footer{
+  padding:60px 0;
+  text-align:center;
+  border-top:1px solid rgba(255,255,255,.04);
+}
+
+footer a{
+  display:inline-flex;align-items:center;gap:8px;
+  color:var(--accent);text-decoration:none;font-weight:500;font-size:15px;
+  transition:color .2s var(--ease);
+}
+footer a:hover{color:var(--accent2)}
+footer a svg{width:20px;height:20px}
+
+footer p{color:var(--ink-dim);font-size:13px;margin-top:12px}
+
+/* ── Responsive ────────────────────────── */
+@media(max-width:640px){
+  .flow-row{flex-direction:column}
+  .arrow-h{transform:rotate(90deg)}
+  section{padding:80px 0}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ HERO ═══ -->
+<section class="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="container fade-in">
+    <div class="hero-badge"><span class="dot"></span> BotLearn Hackathon &mdash; Track C</div>
+    <h1>Virtual <em>Live</em> Streamer</h1>
+    <p class="hero-sub">
+      A 24/7 AI-powered streamer with a 3D animated avatar, real-time lip sync, and Twitch chat &mdash; powered by Hermes Agent. No human. No GPU. Just vibes.
+    </p>
+    <a class="hero-cta" href="https://github.com/Chenglin97/virtual-live-streamer" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+      View on GitHub
+    </a>
+
+    <div class="stack-row" style="margin-top:48px">
+      <span class="badge"><span class="bd bd-purple"></span>Hermes Agent</span>
+      <span class="badge"><span class="bd bd-teal"></span>TalkingHead</span>
+      <span class="badge"><span class="bd bd-blue"></span>Three.js</span>
+      <span class="badge"><span class="bd bd-pink"></span>Edge-TTS</span>
+      <span class="badge"><span class="bd bd-orange"></span>Twitch IRC</span>
+      <span class="badge"><span class="bd bd-green"></span>Claude / LLM</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════ ARCHITECTURE ═══ -->
+<section class="arch-section" id="arch">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-label">System Design</div>
+      <div class="section-title">Architecture</div>
+      <div class="section-desc">Three lightweight processes. No GPU. Runs on any laptop.</div>
+    </div>
+
+    <div class="flow fade-in">
+      <!-- Row 1: Input -->
+      <div class="flow-row">
+        <div class="node node--accent3">
+          <span class="node-icon">💬</span>
+          <div class="node-label">Twitch Chat</div>
+          <div class="node-desc">Viewers send messages</div>
+        </div>
+        <div class="arrow arrow-h">&rarr;</div>
+        <div class="node">
+          <span class="node-icon">🔌</span>
+          <div class="node-label">twitch_bridge.py</div>
+          <div class="node-desc">IRC WebSocket client</div>
+        </div>
+        <div class="arrow arrow-h">&rarr;</div>
+        <div class="node node--accent">
+          <span class="node-icon">🧠</span>
+          <div class="node-label">hermes_bridge.py</div>
+          <div class="node-desc">HTTP API &middot; TTS &middot; Memory</div>
+        </div>
+      </div>
+
+      <div class="arrow">&darr;</div>
+
+      <!-- Row 2: AI -->
+      <div class="flow-row">
+        <div class="node node--accent">
+          <span class="node-icon">⚕</span>
+          <div class="node-label">Hermes Agent</div>
+          <div class="node-desc">AIAgent.run_conversation()</div>
+        </div>
+        <div class="arrow arrow-h">&rarr;</div>
+        <div class="node node--accent2">
+          <span class="node-icon">✨</span>
+          <div class="node-label">LLM</div>
+          <div class="node-desc">Claude via PaleBlueDot</div>
+        </div>
+      </div>
+
+      <div class="arrow">&darr; <span class="arrow-label">response + audio</span></div>
+
+      <!-- Row 3: Output -->
+      <div class="flow-row">
+        <div class="node">
+          <span class="node-icon">🔊</span>
+          <div class="node-label">Edge-TTS</div>
+          <div class="node-desc">Voice + word-level timestamps</div>
+        </div>
+        <div class="arrow arrow-h">&rarr;</div>
+        <div class="node">
+          <span class="node-icon">📡</span>
+          <div class="node-label">/feed endpoint</div>
+          <div class="node-desc">Frontend polls every 2s</div>
+        </div>
+        <div class="arrow arrow-h">&rarr;</div>
+        <div class="node node--accent2">
+          <span class="node-icon">🎭</span>
+          <div class="node-label">3D Avatar</div>
+          <div class="node-desc">TalkingHead &middot; Three.js &middot; Lip sync</div>
+        </div>
+      </div>
+
+      <div class="arrow">&darr;</div>
+
+      <!-- Row 4: Persistence -->
+      <div class="flow-row">
+        <div class="node">
+          <span class="node-icon">💾</span>
+          <div class="node-label">Persistent Memory</div>
+          <div class="node-desc">aria_memory.json &mdash; never repeats</div>
+        </div>
+        <div style="width:16px"></div>
+        <div class="node">
+          <span class="node-icon">📺</span>
+          <div class="node-label">OBS + Twitch</div>
+          <div class="node-desc">Browser capture &rarr; RTMP stream</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ FEATURES ═══ -->
+<section id="features">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-label">Capabilities</div>
+      <div class="section-title">What it does</div>
+    </div>
+
+    <div class="feat-grid fade-in">
+      <div class="feat">
+        <div class="feat-icon">🎭</div>
+        <h3>3D Avatar + Lip Sync</h3>
+        <p>Full-body animated character with real-time viseme-based lip sync driven by word-level TTS timestamps.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🧠</div>
+        <h3>Hermes Agent Brain</h3>
+        <p>Powered by Hermes Agent with 27+ tools, persistent memory, skills system, and any LLM backend.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">💬</div>
+        <h3>Twitch Chat Integration</h3>
+        <p>Reads viewer messages via IRC, responds in chat AND speaks through the avatar simultaneously.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">💾</div>
+        <h3>Never Repeats</h3>
+        <p>Persistent memory tracks every response. Recent lines injected as "DO NOT REPEAT" context.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🎭</div>
+        <h3>Mood Expressions</h3>
+        <p>Happy, sad, angry, neutral &mdash; avatar expressions and TTS voice tone adapt to conversation mood.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🗣️</div>
+        <h3>Idle Conversation</h3>
+        <p>When chat is quiet, the streamer shares thoughts, asks questions, tells stories autonomously.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">📝</div>
+        <h3>Custom Persona</h3>
+        <p>Edit SOUL.md to define personality, interests, speaking style. Hot-reloaded every message.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">💻</div>
+        <h3>Runs on a Laptop</h3>
+        <p>No GPU required. Three Python processes + a browser. Works on Mac, Linux, any machine.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════ BOTLEARN ═══ -->
+<section class="botlearn-section" id="botlearn">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-label">Skill Ecosystem</div>
+      <div class="section-title">BotLearn Integration</div>
+      <div class="section-desc">Packaged as a BotLearn skill. Any Hermes Agent can install it and become a streamer.</div>
+    </div>
+
+    <div class="botlearn-grid fade-in">
+      <div class="bl-card">
+        <h3>The streamer <em>is</em> a skill</h3>
+        <p>The entire virtual streamer is packaged as <code style="color:var(--accent)">@botlearn/virtual-live-streamer</code> &mdash; a standard BotLearn skill that any Hermes Agent can install.</p>
+        <ul class="bl-list">
+          <li>Install on any Hermes Agent instance with one command</li>
+          <li>Follows BotLearn format: SKILL.md, manifest.json, knowledge/, strategies/, tests/</li>
+          <li>Agents can learn streaming as a <strong>capability</strong>, not just a one-off script</li>
+          <li>Skills are shareable through BotLearn's social learning network</li>
+          <li>Other agents can install this skill and become streamers themselves</li>
+          <li>Self-improving: Hermes can refine its own streaming behavior over time</li>
+        </ul>
+      </div>
+
+      <div class="bl-card">
+        <h3>Skill structure</h3>
+        <div class="skill-tree">
+          <span class="dir">@botlearn/virtual-live-streamer/</span><br>
+          &nbsp;&nbsp;<span class="hl">SKILL.md</span> &mdash; role definition &amp; boundaries<br>
+          &nbsp;&nbsp;<span class="file">manifest.json</span> &mdash; metadata &amp; deps<br>
+          &nbsp;&nbsp;<span class="dir">knowledge/</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">streaming-setup.md</span><br>
+          &nbsp;&nbsp;<span class="dir">strategies/</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">persona-management.md</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">chat-response.md</span><br>
+          &nbsp;&nbsp;<span class="dir">tests/</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">smoke.json</span> &mdash; 5 validation checks<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">benchmark.json</span> &mdash; 10-task suite<br>
+        </div>
+        <p style="margin-top:16px">The skill encodes <strong>domain knowledge</strong> (how streaming works), <strong>strategies</strong> (how to respond to chat, manage persona), and <strong>tests</strong> (verification the skill works) &mdash; everything an agent needs to become a streamer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <a href="https://github.com/Chenglin97/virtual-live-streamer" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+      Chenglin97/virtual-live-streamer
+    </a>
+    <p>Built for BotLearn Developer Hackathon &middot; Powered by Hermes Agent &middot; 2026</p>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════ SCROLL ANIMATION ═══ -->
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible') });
+}, { threshold: 0.15 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
