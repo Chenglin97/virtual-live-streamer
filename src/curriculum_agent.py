@@ -181,36 +181,45 @@ def remaining_segments() -> int:
 # ─────────────────────────────────────────────────────
 # Curriculum agent
 # ─────────────────────────────────────────────────────
-MODULE_PROMPT = """Write a full streaming module for an AI educator named Aria.
+MODULE_PROMPT = """Write a full streaming module for Aria, an AI educator who teaches people to BUILD things.
 
 Topic: {topic}
 
-Structure: 5-8 lessons, each with 4-6 segments. Each segment is what Aria says out loud — natural spoken language, 2-4 sentences, completely self-contained.
+Structure: 5-8 lessons, each with 4-6 segments.
 
-Each segment should:
-- Be standalone — make sense without the previous segment
-- Be SPECIFIC: real tool names, real prices, real benchmarks, real examples
-- Sound like she's talking to a friend, not reading a textbook
-- Use contractions, natural rhythm, occasional opinions
-- Take about 30-45 seconds to say out loud (~80-120 words)
+CRITICAL RULE — every segment MUST contain at least ONE of:
+- An actual command: "pip install chromadb", "curl https://api.openai.com/v1/...", "docker run ..."
+- A real price: "$0.13 per million tokens", "free tier gives you 1000 requests/day"
+- A specific benchmark: "processes 200 tokens per second", "2x faster than the competition"
+- A code pattern: "you'd write something like: client = OpenAI(); response = client.chat.completions.create(...)"
+- A real URL: "go to platform.openai.com/tokenizer", "check out github.com/chroma-core/chroma"
 
-Return ONLY a JSON object:
+If a segment doesn't have at least one concrete actionable detail, it's USELESS. Don't write it.
+
+Good segment: "So pip install langchain chromadb, then from langchain.vectorstores import Chroma. Load your docs with the text splitter — I usually go chunk size 500, overlap 50. Connect to an embedding model — text-embedding-3-small is a penny per million tokens, which is basically free."
+
+Bad segment: "RAG is really powerful because it combines retrieval with generation. It helps LLMs access external knowledge. This is useful for many applications."
+
+Tone: conversational, like a smart friend showing you their screen. Use contractions. Short sentences mixed with longer ones. Occasional opinions.
+
+Each segment: ~80-120 words, self-contained, something a viewer can immediately try.
+
+Return ONLY JSON:
 {{
   "module": "Topic title",
-  "intro": "1-2 sentence module overview Aria says first",
+  "intro": "1-2 sentence overview",
   "lessons": [
     {{
       "title": "Lesson title",
       "segments": [
-        {{"text": "What Aria says (2-4 sentences, specific, conversational)", "spoken": false}},
+        {{"text": "...", "spoken": false}},
         ...
       ]
-    }},
-    ...
+    }}
   ]
 }}
 
-Make at least 5 lessons with 4+ segments each = 20+ segments minimum.
+5+ lessons, 4+ segments each. Minimum 25 segments. Every one must have concrete actionable detail.
 """
 
 
