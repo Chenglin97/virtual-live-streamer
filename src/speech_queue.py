@@ -35,16 +35,15 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": text})
 
-    # Voice style — calm, clear, not trying too hard
+    # Voice style — confident, warm, slight edge
     if messages and messages[0]["role"] != "system":
         messages.insert(0, {
             "role": "system",
             "content": (
-                "This is spoken audio for a live stream. Be calm and clear.\n"
-                "Talk normally. Don't overact. Don't force excitement or fillers.\n"
-                "Just explain things plainly like a chill, smart person would.\n"
-                "Use short sentences. Be direct. Skip the hype.\n"
-                "3-5 sentences max. Finish every sentence."
+                "Spoken audio for a live stream. You're confident and warm with a slight playful edge.\n"
+                "Not a performance. Not a lecture. Just a smart, attractive person talking.\n"
+                "Short sentences. Natural rhythm. A little teasing. A little intimate.\n"
+                "3-5 sentences. Finish every sentence completely."
             )
         })
 
