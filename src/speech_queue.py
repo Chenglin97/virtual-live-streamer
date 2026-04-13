@@ -35,11 +35,11 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": text})
 
-    # System instruction to prevent mid-sentence cuts
+    # Ensure complete sentences — large max_tokens so it never truncates mid-sentence
     if messages and messages[0]["role"] != "system":
         messages.insert(0, {
             "role": "system",
-            "content": "CRITICAL: Always speak in complete sentences. Never stop mid-word or mid-sentence. Finish every thought completely before stopping."
+            "content": "IMPORTANT: Keep your spoken response to 2-3 sentences. Be concise but always finish every sentence completely. Never stop mid-word."
         })
 
     body = {
@@ -48,7 +48,7 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         "audio": {"voice": voice, "format": "pcm16"},
         "stream": True,
         "messages": messages,
-        "max_tokens": 800,
+        "max_tokens": 2000,
     }
 
     audio_chunks = []
