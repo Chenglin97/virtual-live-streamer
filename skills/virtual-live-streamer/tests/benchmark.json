@@ -1,0 +1,55 @@
+{
+  "name": "virtual-live-streamer benchmark",
+  "tests": [
+    {
+      "description": "Responds with viewer username",
+      "input": {"username": "test_user_42", "message": "hey there!"},
+      "expected": "response contains 'test_user_42'"
+    },
+    {
+      "description": "Generates unique idle messages",
+      "input": "call /idle 3 times",
+      "expected": "all 3 responses are different"
+    },
+    {
+      "description": "Mood detection - happy",
+      "input": {"username": "fan", "message": "I love your stream!"},
+      "expected": "mood is 'happy'"
+    },
+    {
+      "description": "Mood detection - sad",
+      "input": {"username": "viewer", "message": "I have to go, bye!"},
+      "expected": "mood is 'sad'"
+    },
+    {
+      "description": "TTS generates word timings",
+      "input": {"username": "test", "message": "tell me a joke"},
+      "expected": "response includes non-empty words, wtimes, wdurations arrays"
+    },
+    {
+      "description": "Memory prevents repetition",
+      "input": "call /idle 5 times",
+      "expected": "no two responses share more than 50% of words"
+    },
+    {
+      "description": "Handles empty message gracefully",
+      "input": {"username": "test", "message": ""},
+      "expected": "returns 400 error"
+    },
+    {
+      "description": "Response under 500 chars for Twitch",
+      "input": {"username": "viewer", "message": "tell me everything about yourself"},
+      "expected": "response length < 500 characters"
+    },
+    {
+      "description": "Audio file is servable",
+      "input": "POST /chat then GET the audio_url",
+      "expected": "200 response with audio/mpeg content-type"
+    },
+    {
+      "description": "Feed tracks messages with incrementing IDs",
+      "input": "POST 3 messages then GET /feed?since=0",
+      "expected": "3 messages with sequential IDs"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "virtual-live-streamer smoke test",
+  "tests": [
+    {
+      "description": "Backend health check",
+      "command": "curl -s http://localhost:5001/health",
+      "expected_contains": "hermes-agent"
+    },
+    {
+      "description": "Chat endpoint responds",
+      "command": "curl -s -X POST http://localhost:5001/chat -H 'Content-Type: application/json' -d '{\"username\":\"test\",\"message\":\"hello\"}'",
+      "expected_contains": "response"
+    },
+    {
+      "description": "TTS audio generated",
+      "command": "curl -s -X POST http://localhost:5001/chat -H 'Content-Type: application/json' -d '{\"username\":\"test\",\"message\":\"hi\"}' | python3 -c \"import sys,json; d=json.load(sys.stdin); print('OK' if d.get('audio_url') else 'FAIL')\"",
+      "expected_contains": "OK"
+    },
+    {
+      "description": "Feed endpoint works",
+      "command": "curl -s http://localhost:5001/feed?since=0",
+      "expected_contains": "messages"
+    },
+    {
+      "description": "Idle endpoint responds",
+      "command": "curl -s http://localhost:5001/idle",
+      "expected_contains": "response"
+    }
+  ]
+}

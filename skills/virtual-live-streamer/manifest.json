@@ -1,0 +1,24 @@
+{
+  "name": "@botlearn/virtual-live-streamer",
+  "version": "1.0.0",
+  "description": "24/7 AI virtual streamer with 3D avatar, lip sync, TTS voice, and Twitch chat — powered by Hermes Agent",
+  "author": "Chenglin97",
+  "license": "MIT",
+  "repository": "https://github.com/Chenglin97/virtual-live-streamer",
+  "tags": ["streaming", "vtuber", "tts", "3d-avatar", "twitch", "lip-sync", "ai-streamer", "hermes-agent"],
+  "platforms": ["macos", "linux"],
+  "files": {
+    "skill": "SKILL.md",
+    "knowledge": ["knowledge/streaming-setup.md"],
+    "strategies": ["strategies/persona-management.md", "strategies/chat-response.md"],
+    "tests": {
+      "smoke": "tests/smoke.json",
+      "benchmark": "tests/benchmark.json"
+    }
+  },
+  "dependencies": {
+    "runtime": ["hermes-agent", "edge-tts", "httpx", "websockets"],
+    "system": ["ffmpeg", "node"],
+    "external": ["TalkingHead (Three.js 3D avatar)"]
+  }
+}

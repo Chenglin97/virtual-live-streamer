@@ -236,6 +236,7 @@ class Handler(BaseHTTPRequestHandler):
         global conversation_history
         message = body.get("message", "")
         username = body.get("username", "viewer")
+        print(f"[CHAT HIT] from={username} msg={message[:50]}")
 
         if not message:
             self._json_response({"error": "no message"}, 400)
