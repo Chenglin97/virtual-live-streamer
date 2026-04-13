@@ -61,25 +61,43 @@ DEFAULT_OUTLINE = [
     "Prompt Engineering: Patterns that work in production",
     "RAG Systems: From toy demo to real deployment",
     "Vector Databases: Pinecone vs Chroma vs Weaviate, real costs",
-    "Embeddings Deep Dive: What models to use and why",
     "Fine-tuning: When LoRA beats RAG (and when it doesn't)",
     "AI Agents: What's actually different from prompt chains",
-    "Tool Use: Function calling, MCP, structured outputs",
     "Agent Frameworks Reviewed: LangChain, CrewAI, AutoGen, Hermes",
-    "Memory in Agents: Conversation history, semantic memory, knowledge graphs",
     "Open Source LLMs: Llama 4, Mistral, Qwen — when local beats API",
-    "LLM Inference Optimization: vLLM, TGI, llama.cpp, batching tricks",
     "Cost Engineering: How to cut your AI bill 90%",
     "Voice AI Stack: STT → LLM → TTS pipelines that actually work",
-    "Image Generation: Flux, SDXL, ComfyUI workflows",
-    "Multi-modal Models: GPT-4o, Gemini, what they're actually good at",
-    "AI Evals: How to measure if your LLM app is working",
-    "Production AI Pipelines: Monitoring, observability, debugging",
-    "AI Safety in Practice: Guardrails, jailbreak prevention, content filters",
-    "The Business of AI: Real revenue, real moats, real failures",
     "Building AI Products: Idea to launch in 30 days",
-    "The State of AI 2026: What's shipping, what's hype",
 ]
+
+# Dynamic topics — agent browses these to find REAL trending products to review
+TRENDING_SOURCES_PROMPT = """Use your browser tools to find trending AI products to review.
+
+Visit these pages and find the MOST INTERESTING AI repos/tools/products:
+
+1. browser_navigate to https://github.com/trending?since=daily
+   - Find AI/ML repos trending today
+2. browser_navigate to https://clawhub.com (if accessible)
+   - Find trending AI skills/tools
+3. browser_navigate to https://news.ycombinator.com
+   - Find Show HN posts about AI tools
+4. browser_navigate to https://www.producthunt.com/topics/artificial-intelligence
+   - Find newly launched AI products
+
+For each interesting product/tool you find, return JSON:
+{
+  "topic": "Product Review: [name] — [what it does]",
+  "type": "review",
+  "repo_url": "github URL if applicable",
+  "product_url": "product website",
+  "what_it_does": "1-2 sentence description",
+  "install_command": "pip install X or npm install X",
+  "pricing": "free tier / $X per month / open source",
+  "competing_with": "what alternatives exist"
+}
+
+Return a JSON array of 3-5 products. Pick ones that are ACTUALLY USEFUL, not just cool demos.
+"""
 
 
 def load_index() -> dict:
@@ -270,11 +288,17 @@ class CurriculumAgent:
 
     def _write_next_module(self):
         idx = load_index()
+        module_count = len(idx.get("modules", []))
+
+        # Alternate: every 2nd module is a product review based on trending
+        if module_count % 2 == 1:
+            self._write_trending_review(idx)
+            return
+
         # Pick next outline topic not yet used
         used = set(idx.get("outline_used", []))
         remaining_topics = [t for t in DEFAULT_OUTLINE if t not in used]
         if not remaining_topics:
-            # Restart from beginning, mark all as fresh
             idx["outline_used"] = []
             remaining_topics = DEFAULT_OUTLINE
         topic = remaining_topics[0]
@@ -314,6 +338,104 @@ class CurriculumAgent:
             print(f"[Curriculum] Wrote {filename}: {len(module['lessons'])} lessons, {seg_count} segments")
         else:
             print(f"[Curriculum] Failed to parse module for: {topic}")
+
+    def _write_trending_review(self, idx):
+        """Browse trending sources and write a product review module."""
+        print(f"[Curriculum] Browsing for trending AI products to review...")
+
+        # Step 1: Find trending products via browser
+        result = self.agent.run_conversation(
+            user_message=TRENDING_SOURCES_PROMPT,
+            system_message=(
+                "You research trending AI products for a live stream. "
+                "Use browser_navigate, browser_snapshot, browser_scroll to actually visit pages. "
+                "Return ONLY a JSON array of products. No commentary."
+            ),
+            conversation_history=[],
+            task_id="aria_trending_research",
+        )
+
+        response = result.get("final_response") or result.get("response") or ""
+        products = self._parse_json_array(response)
+
+        if not products or len(products) == 0:
+            print(f"[Curriculum] No trending products found, falling back to outline")
+            return
+
+        # Step 2: Write a review module for the found products
+        product_details = ""
+        for i, p in enumerate(products[:5]):
+            product_details += (
+                f"\nProduct {i+1}: {p.get('topic', '?')}\n"
+                f"  URL: {p.get('product_url', p.get('repo_url', '?'))}\n"
+                f"  What: {p.get('what_it_does', '?')}\n"
+                f"  Install: {p.get('install_command', '?')}\n"
+                f"  Price: {p.get('pricing', '?')}\n"
+                f"  Competes with: {p.get('competing_with', '?')}\n"
+            )
+
+        review_prompt = (
+            f"Write a streaming module where Aria reviews these trending AI products she just found:\n"
+            f"{product_details}\n\n"
+            f"Structure: One lesson per product, each with 4-6 segments covering:\n"
+            f"- What it is and why it's trending\n"
+            f"- How to install and get started (actual commands)\n"
+            f"- A quick demo walkthrough\n"
+            f"- Honest opinion: is it worth using? What's it good/bad at?\n"
+            f"- Who should use this and what to build with it\n\n"
+            f"Same format as before — conversational, specific, actionable.\n"
+            f"Return ONLY JSON with module/intro/lessons/segments structure."
+        )
+
+        result2 = self.agent.run_conversation(
+            user_message=review_prompt,
+            system_message=(
+                "You write product review content for a live stream. "
+                "Be specific — include real commands, real prices, honest opinions. "
+                "Output ONLY valid JSON."
+            ),
+            conversation_history=[],
+            task_id="aria_review_writer",
+        )
+
+        response2 = result2.get("final_response") or result2.get("response") or ""
+        module = self._parse_json(response2)
+
+        if module and "lessons" in module and module["lessons"]:
+            num = len(idx["modules"]) + 1
+            filename = f"module_{num:03d}_trending_review.json"
+            save_module(filename, module)
+
+            idx["modules"].append({
+                "file": filename,
+                "title": module.get("module", "Trending Product Reviews"),
+                "completed": False,
+            })
+            save_index(idx)
+
+            seg_count = sum(len(l.get("segments", [])) for l in module["lessons"])
+            print(f"[Curriculum] Wrote review {filename}: {len(module['lessons'])} products, {seg_count} segments")
+        else:
+            print(f"[Curriculum] Failed to write review module")
+
+    def _parse_json_array(self, response: str) -> list | None:
+        """Extract a JSON array from response."""
+        import re
+        try:
+            d = json.loads(response)
+            if isinstance(d, list):
+                return d
+        except Exception:
+            pass
+        matches = re.findall(r'\[[\s\S]*?\]', response)
+        for m in matches:
+            try:
+                d = json.loads(m)
+                if isinstance(d, list) and len(d) > 0:
+                    return d
+            except Exception:
+                continue
+        return None
 
     def _parse_json(self, response: str) -> dict | None:
         import re
