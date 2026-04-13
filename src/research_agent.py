@@ -109,6 +109,17 @@ class ResearchAgent:
     def _research_loop(self):
         """Continuously research and fill the topic queue."""
         while self._running:
+            # Only research if frontend is active (saves tokens when no viewers)
+            try:
+                import importlib
+                bridge = importlib.import_module("hermes_bridge")
+                idle_secs = time.time() - bridge.last_frontend_poll
+                if idle_secs > bridge.FRONTEND_TIMEOUT:
+                    time.sleep(10)
+                    continue
+            except Exception:
+                pass
+
             current_size = queue_size()
 
             if current_size < 5:

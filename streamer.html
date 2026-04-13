@@ -633,27 +633,6 @@
       }
     }
 
-    async function processQueue() {
-      while (messageQueue.length > 0) {
-        const { message, username } = messageQueue.shift();
-        updateQueueIndicator();
-        await doChat(message, username);
-      }
-      updateQueueIndicator();
-    }
-
-    function enqueue(message, username) {
-      if (!isBusy && messageQueue.length === 0) {
-        processQueue();
-        messageQueue.unshift({ message, username });
-        messageQueue.shift();
-        doChat(message, username);
-      } else {
-        messageQueue.push({ message, username });
-        updateQueueIndicator();
-      }
-    }
-
     // ── Chat — fetch response and insert at front of speech queue ──
     async function doChat(message, username) {
       resetIdleTimer();

@@ -56,6 +56,11 @@ if str(Path(__file__).parent) in sys.path:
 USE_GPT_AUDIO = True  # Use GPT-4o for voice (set False to use Edge-TTS)
 idle_queue = None  # Initialized at startup
 
+# Track frontend activity — pause generation when no one's watching
+import time as _time
+last_frontend_poll = _time.time()
+FRONTEND_TIMEOUT = 30  # seconds of no activity = paused
+
 # ─────────────────────────────────────────────────────
 # Message feed — frontend polls this for new messages
 # ─────────────────────────────────────────────────────
@@ -445,6 +450,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_feed(self):
         """Return new messages since a given ID. Frontend polls this."""
+        # Track frontend activity — used to pause generation when idle
+        global last_frontend_poll
+        last_frontend_poll = _time.time()
+
         # Parse ?since=ID from query string
         since_id = 0
         if "?" in self.path:

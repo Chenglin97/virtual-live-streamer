@@ -180,8 +180,20 @@ class SpeechPregenQueue:
             return len(self.queue)
 
     def _fill_loop(self):
-        """Background loop: keep queue full from researched topics or continuation."""
+        """Background loop: keep queue full — pauses if no frontend connected."""
         while self._running:
+            # Only generate if frontend is active (saves tokens when no viewers)
+            try:
+                import sys
+                import importlib
+                bridge = importlib.import_module("hermes_bridge")
+                idle_secs = time.time() - bridge.last_frontend_poll
+                if idle_secs > bridge.FRONTEND_TIMEOUT:
+                    time.sleep(5)
+                    continue
+            except Exception:
+                pass
+
             with self.lock:
                 current_size = len(self.queue)
 
