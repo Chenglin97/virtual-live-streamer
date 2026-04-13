@@ -737,18 +737,15 @@
               addMessage(msg.message, "viewer", msg.username);
             }
 
-            // Speak Aria's response (wait if busy)
-            const speakIt = async () => {
-              while (isBusy) await new Promise(r => setTimeout(r, 500));
-              isBusy = true;
-              resetIdleTimer();
-              addMessage(msg.response, "aria", "Aria", true);
-              if (msg.mood) try { head.setMood(msg.mood); } catch(_) {}
-              await speakResponse(msg);
-              isBusy = false;
-              resetIdleTimer();
-            };
-            speakIt();
+            // Interrupt current speech and speak Aria's response immediately
+            try { head.stopSpeaking(); } catch(_) {}
+            isBusy = true;
+            resetIdleTimer();
+            addMessage(msg.response, "aria", "Aria", true);
+            if (msg.mood) try { head.setMood(msg.mood); } catch(_) {}
+            await speakResponse(msg);
+            isBusy = false;
+            resetIdleTimer();
           }
 
           if (data.latest_id !== undefined) {
@@ -778,13 +775,10 @@
       chatInput.value = "";
       ownMessages.add(msg); // mark so feed poller skips it
 
-      if (isBusy) {
-        messageQueue.push({ message: msg, username: user });
-        updateQueueIndicator();
-        addMessage(`(queued) ${msg}`, "system");
-      } else {
-        doChat(msg, user);
-      }
+      // Stop current speech and respond immediately — no queuing
+      try { head.stopSpeaking(); } catch(_) {}
+      isBusy = false;
+      doChat(msg, user);
     }
 
     sendBtn.addEventListener("click", handleSend);
