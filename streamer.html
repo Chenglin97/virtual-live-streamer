@@ -125,19 +125,20 @@
     #avatar-panel {
       flex: 1;
       position: relative;
-      background: radial-gradient(ellipse at 50% 80%, #1a0f3a 0%, #0a0a0f 70%);
+      background:
+        linear-gradient(180deg, #1a0825 0%, #0d0618 40%, #0a0412 100%);
       overflow: hidden;
     }
 
-    /* Grid lines background */
+    /* Cozy room ambiance — warm light from below */
     #avatar-panel::before {
       content: "";
       position: absolute;
       inset: 0;
-      background-image:
-        linear-gradient(rgba(124,110,245,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(124,110,245,0.04) 1px, transparent 1px);
-      background-size: 40px 40px;
+      background:
+        radial-gradient(ellipse at 30% 90%, rgba(255,160,60,.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 85%, rgba(180,120,255,.06) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 20%, rgba(60,40,120,.15) 0%, transparent 60%);
       pointer-events: none;
     }
 
@@ -415,12 +416,14 @@
     }
   </style>
 
+  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.7.1/dist/es-module-shims.js"></script>
   <script type="importmap">
   { "imports":
     {
       "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+      "three/examples/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
-      "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.7/modules/talkinghead.mjs"
+      "talkinghead": "./modules/talkinghead.mjs"
     }
   }
   </script>
@@ -732,8 +735,8 @@
 
       head = new TalkingHead(avatarEl, {
         lipsyncModules: ["en"],
-        cameraView: "upper",
-        cameraDistance: 0.4,
+        cameraView: "mid",
+        cameraDistance: 0.5,
         cameraX: 0,
         cameraY: 0,
         cameraRotateX: 0
@@ -742,9 +745,26 @@
       try {
         loadingTxt.textContent = "Loading Aria…";
         await head.showAvatar({
-          url: './avatars/brunette.glb',
+          url: './avatars/vroid.glb',
           body: 'F',
           avatarMood: 'happy',
+          baseline: { headRotateX: -0.1, eyeBlinkLeft: 0.05, eyeBlinkRight: 0.05 },
+          modelDynamicBones: [
+            {"bone":"J_Sec_L_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_R_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_Hair2_01","type":"mix2","stiffness":100,"damping":4,"limits":[null,null,[null,0.01],null]},
+            {"bone":"J_Sec_Hair3_01","type":"mix2","stiffness":150,"damping":4,"limits":[null,null,[null,0.01],null]},
+            {"bone":"J_Sec_Hair2_06","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_06","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_07","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_07","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_08","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_08","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_12","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_12","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_13","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_13","type":"mix2","stiffness":150,"damping":4},
+          ],
           lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) {

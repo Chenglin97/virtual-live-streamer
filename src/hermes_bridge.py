@@ -44,6 +44,17 @@ agent = AIAgent(
 conversation_history = []
 
 # ─────────────────────────────────────────────────────
+# GPT-4o Audio + Pre-generation queue
+# ─────────────────────────────────────────────────────
+# Add src/ back to path temporarily for speech_queue import
+sys.path.insert(0, str(Path(__file__).parent))
+from speech_queue import generate_gpt_audio, SpeechPregenQueue
+sys.path.remove(str(Path(__file__).parent))
+
+USE_GPT_AUDIO = True  # Use GPT-4o for voice (set False to use Edge-TTS)
+idle_queue = None  # Initialized at startup
+
+# ─────────────────────────────────────────────────────
 # Message feed — frontend polls this for new messages
 # ─────────────────────────────────────────────────────
 import time as _time
@@ -272,17 +283,40 @@ class Handler(BaseHTTPRequestHandler):
             response_text = "Hmm, give me a sec... my brain glitched!"
 
         mood = detect_mood(response_text)
-        audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
 
-        resp_data = {
-            "response": response_text,
-            "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
-            "mood": mood,
-            "username": username,
-            "words": words,
-            "wtimes": wtimes,
-            "wdurations": wdurations,
-        }
+        # Generate audio — GPT-4o audio or Edge-TTS fallback
+        if USE_GPT_AUDIO and response_text:
+            gpt_result = generate_gpt_audio(
+                f"[Respond to {username} who said: {message}]\nYour text response: {response_text}\n\nNow say this out loud expressively.",
+                system_prompt=PERSONA,
+            )
+            if gpt_result:
+                resp_data = {
+                    "response": response_text,
+                    "audio_url": gpt_result["audio_url"],
+                    "mood": mood,
+                    "username": username,
+                    "words": gpt_result["words"],
+                    "wtimes": gpt_result["wtimes"],
+                    "wdurations": gpt_result["wdurations"],
+                }
+            else:
+                # Fallback to Edge-TTS
+                audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
+                resp_data = {
+                    "response": response_text,
+                    "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
+                    "mood": mood, "username": username,
+                    "words": words, "wtimes": wtimes, "wdurations": wdurations,
+                }
+        else:
+            audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
+            resp_data = {
+                "response": response_text,
+                "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
+                "mood": mood, "username": username,
+                "words": words, "wtimes": wtimes, "wdurations": wdurations,
+            }
 
         # Add to message feed so frontend can pick it up
         global feed_counter
@@ -301,49 +335,87 @@ class Handler(BaseHTTPRequestHandler):
         self._json_response(resp_data)
 
     def _handle_idle(self):
-        global conversation_history
+        global feed_counter, conversation_history
+        # Try pre-generated queue first (instant, zero latency)
+        if USE_GPT_AUDIO and idle_queue and idle_queue.size() > 0:
+            pregenned = idle_queue.get()
+            if pregenned:
+                response_text = pregenned["response"]
+                add_to_memory(response_text, is_idle=True)
+                resp_data = {
+                    "response": response_text,
+                    "audio_url": pregenned["audio_url"],
+                    "mood": detect_mood(response_text),
+                    "words": pregenned["words"],
+                    "wtimes": pregenned["wtimes"],
+                    "wdurations": pregenned["wdurations"],
+                }
+                print(f"[Idle] From queue ({idle_queue.size()} remaining): {response_text[:60]}...")
+                feed_counter += 1
+                message_feed.append({
+                    "id": feed_counter, "username": "Aria", "message": "",
+                    "is_idle": True, "timestamp": _time.time(), **resp_data,
+                })
+                while len(message_feed) > 50:
+                    message_feed.pop(0)
+                self._json_response(resp_data)
+                return
 
-        # Build system message with memory to prevent repetition
+        # Fallback: generate on the fly
         memory_context = get_memory_context()
         system_msg = PERSONA
         if memory_context:
             system_msg += "\n\n" + memory_context
 
-        try:
-            result = agent.run_conversation(
-                user_message="[System: Chat has been quiet. Teach ONE fresh AI concept, share a surprising AI fact, give a hot take on the AI industry, or ask the audience a thought-provoking AI question. Must be completely different from anything in your recent history. Keep it to 1-2 sentences — punchy and interesting.]",
-                system_message=system_msg,
-                conversation_history=conversation_history,
+        if USE_GPT_AUDIO:
+            # Generate with GPT-4o audio directly
+            result = generate_gpt_audio(
+                "[Say ONE fresh, interesting thing — a fun thought, hot take, question for chat, "
+                "mini story, or observation. 1-2 sentences, be warm and expressive.]",
+                system_prompt=system_msg,
             )
-            response_text = result.get("final_response") or result.get("response") or ""
-            if response_text == "None":
-                response_text = ""
-            conversation_history = result.get("conversation_history", conversation_history)
-            if len(conversation_history) > 50:
-                conversation_history = conversation_history[-40:]
-
-            # Save to memory as idle line
-            if response_text:
+            if result:
+                response_text = result["response"]
                 add_to_memory(response_text, is_idle=True)
-        except Exception as e:
-            print(f"Hermes idle error: {e}")
-            response_text = "Hmm, it's quiet in here... anyone out there?"
+                resp_data = {
+                    "response": response_text,
+                    "audio_url": result["audio_url"],
+                    "mood": detect_mood(response_text),
+                    "words": result["words"],
+                    "wtimes": result["wtimes"],
+                    "wdurations": result["wdurations"],
+                }
+            else:
+                resp_data = {"response": "", "audio_url": None, "mood": "neutral",
+                             "words": [], "wtimes": [], "wdurations": []}
+        else:
+            try:
+                r = agent.run_conversation(
+                    user_message="[System: Chat is quiet. Say ONE fresh thing. 1-2 sentences.]",
+                    system_message=system_msg,
+                    conversation_history=conversation_history,
+                )
+                response_text = r.get("final_response") or r.get("response") or ""
+                if response_text == "None": response_text = ""
+                response_text = clean_response(response_text)
+                conversation_history = r.get("conversation_history", conversation_history)
+                if len(conversation_history) > 50:
+                    conversation_history = conversation_history[-40:]
+                if response_text:
+                    add_to_memory(response_text, is_idle=True)
+            except Exception as e:
+                print(f"Hermes idle error: {e}")
+                response_text = "Hmm, it's quiet in here... anyone out there?"
 
-        response_text = clean_response(response_text)
-        mood = detect_mood(response_text)
-        audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
-
-        resp_data = {
-            "response": response_text,
-            "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
-            "mood": mood,
-            "words": words,
-            "wtimes": wtimes,
-            "wdurations": wdurations,
-        }
+            mood = detect_mood(response_text)
+            audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
+            resp_data = {
+                "response": response_text,
+                "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
+                "mood": mood, "words": words, "wtimes": wtimes, "wdurations": wdurations,
+            }
 
         # Add idle messages to feed too so frontend picks them up
-        global feed_counter
         feed_counter += 1
         message_feed.append({
             "id": feed_counter,
@@ -396,10 +468,22 @@ if __name__ == "__main__":
     print("=" * 50)
     print(" Aria — Virtual Streamer (Hermes Agent)")
     print(f" http://localhost:{port}")
+    if USE_GPT_AUDIO:
+        print(" Voice: GPT-4o Audio (shimmer)")
+        print(" Pre-gen queue: 3 responses buffered")
+    else:
+        print(" Voice: Edge-TTS")
     print("=" * 50)
+
+    # Start pre-generation queue (fills in background)
+    globals()['idle_queue'] = SpeechPregenQueue(persona=PERSONA, queue_size=3)
+    if USE_GPT_AUDIO:
+        idle_queue.start()
+
     server = HTTPServer(("0.0.0.0", port), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down...")
+        idle_queue.stop()
         server.shutdown()
