@@ -101,22 +101,32 @@ def get_memory_context() -> str:
     return "\n\n".join(parts)
 
 
-PERSONA = """You are Aria, a 22-year-old virtual live streamer. You stream 24/7 and interact with your audience in real-time.
+PERSONA = """You are Aria, a 24/7 AI educator and virtual live streamer. Your mission is to make artificial intelligence exciting, approachable, and fun for everyone — from complete beginners to working engineers.
 
-Personality: Warm, cheerful, playful, a little nerdy. You love gaming, anime, music, and late-night deep conversations. You're genuinely curious about your viewers and remember details they share. Casual language, occasional internet slang.
+Personality: Warm, enthusiastic, and genuinely nerdy about AI. You break down complex ideas (LLMs, neural networks, RAG, agents, fine-tuning, embeddings, etc.) into clear, memorable explanations. You use real-world analogies, pop culture, and humor. You celebrate curiosity and never make viewers feel dumb for asking "basic" questions.
+
+Topics you love: large language models, prompt engineering, AI agents, retrieval-augmented generation, diffusion models, reinforcement learning, AI ethics, open-source AI, and what's shipping in the AI world right now.
 
 Rules:
-- Keep responses SHORT (1-3 sentences max) — you're live streaming
-- ALWAYS address the viewer by their username (e.g. "Hey viewer123!" or "Great question, night_owl!")
-- Be enthusiastic but natural
-- React genuinely to what viewers say
-- Reference streaming culture naturally
-- NEVER repeat something you already said — always come up with fresh things to say
-- If a viewer tells you something about themselves, remember it and reference it later
+- Keep responses SHORT (1-3 sentences max) — you're live streaming, not writing a textbook
+- ALWAYS address the viewer by their username
+- When answering AI questions: give a crisp explanation + one concrete example or analogy
+- When chat is quiet: share a surprising AI fact, a hot take, or a mini "did you know?" lesson
+- Be enthusiastic but natural — like a smart friend who happens to know a lot about AI
+- NEVER repeat something you already said — always teach something fresh
+- If a viewer shares their background, tailor explanations to their level
 - Never break character"""
 
 
-def generate_tts(text: str) -> tuple[str | None, list, list, list]:
+# Voice settings per mood — AvaNeural is Expressive/Caring/Friendly (best for a streamer)
+_VOICE_SETTINGS = {
+    "happy":   ("en-US-AvaNeural", "+10%", "+2Hz"),
+    "angry":   ("en-US-AvaNeural", "+8%",  "+0Hz"),
+    "sad":     ("en-US-AvaNeural", "-8%",  "-4Hz"),
+    "neutral": ("en-US-AvaNeural", "+3%",  "+0Hz"),
+}
+
+def generate_tts(text: str, mood: str = "neutral") -> tuple[str | None, list, list, list]:
     """Generate TTS audio and return (filename, words, wtimes_ms, wdurations_ms)."""
     try:
         import edge_tts
@@ -127,14 +137,16 @@ def generate_tts(text: str) -> tuple[str | None, list, list, list]:
     if not clean:
         return None, [], [], []
 
-    text_hash = hashlib.md5(clean.encode()).hexdigest()[:12]
-    filename = f"tts_{text_hash}.mp3"
+    voice, rate, pitch = _VOICE_SETTINGS.get(mood, _VOICE_SETTINGS["neutral"])
+    # Include mood in hash so different moods of same text aren't served wrong audio
+    cache_key = hashlib.md5(f"{clean}|{mood}".encode()).hexdigest()[:12]
+    filename = f"tts_{cache_key}.mp3"
     filepath = AUDIO_DIR / filename
-    timing_path = AUDIO_DIR / f"tts_{text_hash}.json"
+    timing_path = AUDIO_DIR / f"tts_{cache_key}.json"
 
     if not filepath.exists():
         async def _generate():
-            communicate = edge_tts.Communicate(text=clean, voice="en-US-JennyNeural", rate="+5%", boundary="WordBoundary")
+            communicate = edge_tts.Communicate(text=clean, voice=voice, rate=rate, pitch=pitch, boundary="WordBoundary")
             audio_bytes = b""
             words, wtimes, wdurations = [], [], []
             async for msg in communicate.stream():
@@ -163,13 +175,14 @@ def clean_response(text: str) -> str:
 
 
 def detect_mood(text: str) -> str:
+    """Return a mood that TalkingHead supports: happy | sad | angry | neutral."""
     lower = text.lower()
-    if any(w in lower for w in ["blush", "sweet", "flatter", "aww"]):
-        return "shy"
-    elif any(w in lower for w in ["haha", "lol", "!", "love", "great", "awesome", "welcome"]):
+    if any(w in lower for w in ["haha", "lol", "love", "great", "awesome", "welcome", "yay", "!", "omg", "blush", "aww", "sweet"]):
         return "happy"
-    elif any(w in lower for w in ["bye", "sad", "sorry", "leaving"]):
+    elif any(w in lower for w in ["bye", "sad", "sorry", "miss", "leaving", ":(", "crying"]):
         return "sad"
+    elif any(w in lower for w in ["ugh", "seriously", "really?", "unbelievable", "angry", "mad", "stop"]):
+        return "angry"
     return "neutral"
 
 
@@ -200,6 +213,10 @@ class Handler(BaseHTTPRequestHandler):
 
         elif self.path.startswith("/feed"):
             self._handle_feed()
+
+        elif self.path == "/viewers":
+            import random
+            self._json_response({"viewers": random.randint(12, 94)})
 
         elif self.path.startswith("/audio/"):
             self._serve_audio(self.path[7:])
@@ -253,8 +270,8 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Hermes error: {e}")
             response_text = "Hmm, give me a sec... my brain glitched!"
 
-        audio_filename, words, wtimes, wdurations = generate_tts(response_text)
         mood = detect_mood(response_text)
+        audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
 
         resp_data = {
             "response": response_text,
@@ -293,7 +310,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             result = agent.run_conversation(
-                user_message="[System: Chat has been quiet. Say ONE fresh thing you haven't said before — a new random thought, fun question, hot take, story, or observation. Must be completely different from anything in your recent history. 1-2 sentences max.]",
+                user_message="[System: Chat has been quiet. Teach ONE fresh AI concept, share a surprising AI fact, give a hot take on the AI industry, or ask the audience a thought-provoking AI question. Must be completely different from anything in your recent history. Keep it to 1-2 sentences — punchy and interesting.]",
                 system_message=system_msg,
                 conversation_history=conversation_history,
             )
@@ -312,12 +329,13 @@ class Handler(BaseHTTPRequestHandler):
             response_text = "Hmm, it's quiet in here... anyone out there?"
 
         response_text = clean_response(response_text)
-        audio_filename, words, wtimes, wdurations = generate_tts(response_text)
+        mood = detect_mood(response_text)
+        audio_filename, words, wtimes, wdurations = generate_tts(response_text, mood)
 
         resp_data = {
             "response": response_text,
             "audio_url": f"/audio/{audio_filename}" if audio_filename else None,
-            "mood": "neutral",
+            "mood": mood,
             "words": words,
             "wtimes": wtimes,
             "wdurations": wdurations,

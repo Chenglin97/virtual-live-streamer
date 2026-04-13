@@ -1,49 +1,418 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Virtual Live Streamer - Aria</title>
+  <title>Aria — AI Educator</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body, html { width: 100%; height: 100%; background: #1a1a2e; color: white; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    #container { display: flex; width: 100%; height: 100%; }
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --surface2:  #18181f;
+      --border:    rgba(255,255,255,0.07);
+      --accent:    #7c6ef5;
+      --accent2:   #56cfb2;
+      --text:      #e8e8f0;
+      --text-muted:#6b6b80;
+      --live:      #22c55e;
+      --danger:    #ef4444;
+      --radius:    12px;
+    }
 
-    /* Avatar panel */
-    #avatar-panel { flex: 1; position: relative; }
-    #avatar { width: 100%; height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-    /* Top bar */
-    #topbar { position: absolute; top: 0; left: 0; right: 0; height: 50px; background: rgba(0,0,0,0.6);
-              display: flex; align-items: center; padding: 0 15px; z-index: 10; }
-    #live-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff0000; margin-right: 8px;
-                animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    #live-text { color: #ff0000; font-weight: bold; font-size: 16px; margin-right: 20px; }
-    #streamer-name { font-size: 16px; color: #fff; }
-    #viewer-count { margin-left: auto; color: #aaa; font-size: 14px; }
+    /* ── Top bar ────────────────────────────────── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 10;
+    }
 
-    /* Chat panel */
-    #chat-panel { width: 340px; background: #0e0e1a; display: flex; flex-direction: column; border-left: 1px solid #333; }
-    #chat-header { padding: 12px 15px; background: #16162a; font-size: 14px; font-weight: bold; border-bottom: 1px solid #333; }
-    #chat-messages { flex: 1; overflow-y: auto; padding: 10px 15px; font-size: 13px; }
-    .chat-msg { margin-bottom: 8px; line-height: 1.4; }
-    .chat-user { font-weight: bold; margin-right: 6px; }
-    .chat-system { color: #888; font-style: italic; }
+    #topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-    #chat-input-area { padding: 10px; border-top: 1px solid #333; display: flex; gap: 8px; }
-    #chat-input { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1a1a2e; color: white; font-size: 13px; }
-    #chat-send { padding: 8px 16px; border-radius: 6px; border: none; background: #7c3aed; color: white; cursor: pointer; font-size: 13px; }
-    #chat-send:hover { background: #6d28d9; }
+    #live-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--danger);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    #live-badge .dot {
+      width: 6px; height: 6px;
+      background: #fff;
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
 
-    /* Agent status */
-    #status { position: absolute; bottom: 60px; left: 15px; background: rgba(0,0,0,0.5); padding: 6px 12px;
-              border-radius: 20px; font-size: 12px; color: #aaa; z-index: 10; }
-    #debug { display: none; }
+    #stream-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    #stream-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
 
-    /* Loading overlay */
-    #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-               font-size: 18px; color: #aaa; z-index: 20; }
+    #topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #viewer-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    #viewer-chip svg { color: var(--accent2); }
+    #viewer-count { color: var(--text); font-weight: 600; }
+
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    #status-dot.online { background: var(--live); box-shadow: 0 0 6px var(--live); }
+
+    /* ── Main layout ────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Avatar panel ───────────────────────────── */
+    #avatar-panel {
+      flex: 1;
+      position: relative;
+      background: radial-gradient(ellipse at 50% 80%, #1a0f3a 0%, #0a0a0f 70%);
+      overflow: hidden;
+    }
+
+    /* Grid lines background */
+    #avatar-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,110,245,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,110,245,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    #avatar {
+      width: 100%;
+      height: 100%;
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Glow under avatar */
+    #avatar-glow {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 120px;
+      background: radial-gradient(ellipse, rgba(124,110,245,0.25) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* ── Subtitle ───────────────────────────────── */
+    #subtitle-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 80%;
+      background: rgba(10,10,15,0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 18px;
+      font-size: 15px;
+      font-weight: 500;
+      text-align: center;
+      color: var(--text);
+      display: none;
+      z-index: 5;
+      line-height: 1.5;
+    }
+    #subtitle-bar .word { display: inline; }
+    #subtitle-bar .word.spoken { color: var(--accent2); }
+
+    /* ── Loading overlay ────────────────────────── */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 20;
+    }
+    #loading-overlay .logo {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #loading-overlay .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text { font-size: 13px; color: var(--text-muted); }
+
+    /* ── Chat sidebar ───────────────────────────── */
+    #chat-panel {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+    }
+
+    #chat-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* Topic pills */
+    #topic-pills {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .pill:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(124,110,245,0.1);
+    }
+
+    /* Messages */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface2) transparent;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: 92%;
+      animation: fadeSlide 0.2s ease-out;
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .msg-meta .username { font-weight: 600; font-size: 12px; }
+    .msg-meta .time { font-size: 10px; }
+
+    .msg-bubble {
+      padding: 8px 11px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .msg.viewer { align-self: flex-end; align-items: flex-end; }
+    .msg.viewer .msg-bubble {
+      background: rgba(124,110,245,0.18);
+      border: 1px solid rgba(124,110,245,0.25);
+      color: #ccc8ff;
+    }
+
+    .msg.aria { align-self: flex-start; align-items: flex-start; }
+    .msg.aria .msg-meta .username { color: var(--accent2); }
+    .msg.aria .msg-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .msg.system {
+      align-self: center;
+      align-items: center;
+    }
+    .msg.system .msg-bubble {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 2px 6px;
+    }
+
+    /* Thinking dots */
+    .msg.thinking .msg-bubble {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 10px 14px;
+    }
+    .thinking-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* ── Input area ─────────────────────────────── */
+    #input-area {
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    #input-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    #username-input {
+      width: 72px;
+      padding: 8px 9px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    #chat-input:focus, #username-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    #send-btn {
+      width: 36px; height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    #send-btn:hover { background: #9185f7; }
+    #send-btn:active { transform: scale(0.93); }
+    #send-btn:disabled { background: var(--surface2); cursor: not-allowed; }
+    #send-btn svg { width: 16px; height: 16px; color: #fff; }
+
+    #queue-indicator {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      text-align: center;
+      display: none;
+    }
   </style>
 
   <script type="importmap">
@@ -59,16 +428,309 @@
   <script type="module">
     import { TalkingHead } from "talkinghead";
 
+    const BACKEND = "http://localhost:5001";
+    const AVATAR_URL = "./avatars/brunette.glb";
+    const IDLE_INTERVAL_MS = 28000;
+
+    // ── State ─────────────────────────────────────
     let head;
-    let agentApiUrl = 'http://localhost:5001'; // Backend server
+    let isBusy = false;
+    let messageQueue = [];
+    let idleTimer = null;
 
-    // ── Initialize Avatar ──
-    document.addEventListener('DOMContentLoaded', async function() {
-      const nodeAvatar = document.getElementById('avatar');
-      const nodeLoading = document.getElementById('loading');
+    // ── DOM ───────────────────────────────────────
+    const avatarEl     = document.getElementById("avatar");
+    const loadingEl    = document.getElementById("loading-overlay");
+    const loadingTxt   = document.getElementById("loading-text");
+    const statusDot    = document.getElementById("status-dot");
+    const subtitleBar  = document.getElementById("subtitle-bar");
+    const chatMsgs     = document.getElementById("chat-messages");
+    const chatInput    = document.getElementById("chat-input");
+    const usernameInput= document.getElementById("username-input");
+    const sendBtn      = document.getElementById("send-btn");
+    const viewerCount  = document.getElementById("viewer-count");
+    const queueEl      = document.getElementById("queue-indicator");
 
-      head = new TalkingHead(nodeAvatar, {
-        ttsEndpoint: null, // We'll use speakAudio instead
+    // ── Username → color ──────────────────────────
+    const userColors = new Map();
+    function getUserColor(name) {
+      if (!userColors.has(name)) {
+        let h = 0;
+        for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        const hue = h % 360;
+        userColors.set(name, `hsl(${hue},65%,68%)`);
+      }
+      return userColors.get(name);
+    }
+
+    // ── Time helper ───────────────────────────────
+    function timeNow() {
+      return new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+    }
+
+    // ── Messages ──────────────────────────────────
+    function addMessage(text, type, username = "") {
+      const wrap = document.createElement("div");
+      wrap.className = `msg ${type}`;
+
+      if (type !== "system") {
+        const meta = document.createElement("div");
+        meta.className = "msg-meta";
+        if (username) {
+          const u = document.createElement("span");
+          u.className = "username";
+          u.textContent = username;
+          if (type === "viewer") u.style.color = getUserColor(username);
+          meta.appendChild(u);
+        }
+        const t = document.createElement("span");
+        t.className = "time";
+        t.textContent = timeNow();
+        meta.appendChild(t);
+        wrap.appendChild(meta);
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = "msg-bubble";
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+
+      chatMsgs.appendChild(wrap);
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+      return wrap;
+    }
+
+    function showThinking() {
+      const wrap = document.createElement("div");
+      wrap.className = "msg aria thinking";
+      const meta = document.createElement("div");
+      meta.className = "msg-meta";
+      const u = document.createElement("span");
+      u.className = "username";
+      u.textContent = "Aria";
+      u.style.color = "var(--accent2)";
+      meta.appendChild(u);
+      wrap.appendChild(meta);
+      const bubble = document.createElement("div");
+      bubble.className = "msg-bubble";
+      bubble.innerHTML = '<div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>';
+      wrap.appendChild(bubble);
+      chatMsgs.appendChild(wrap);
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+      return wrap;
+    }
+
+    // ── Subtitle (word by word) ───────────────────
+    function showSubtitle(words) {
+      subtitleBar.innerHTML = "";
+      words.forEach((w, i) => {
+        const span = document.createElement("span");
+        span.className = "word";
+        span.textContent = (i > 0 ? " " : "") + w;
+        span.dataset.idx = i;
+        subtitleBar.appendChild(span);
+      });
+      subtitleBar.style.display = "block";
+    }
+
+    function highlightWord(idx) {
+      subtitleBar.querySelectorAll(".word").forEach((s, i) => {
+        s.classList.toggle("spoken", i < idx);
+      });
+    }
+
+    // ── Audio helpers ─────────────────────────────
+    async function decodeAudio(url) {
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      return head.audioCtx.decodeAudioData(buf);
+    }
+
+    async function waitForSpeech() {
+      await new Promise(r => setTimeout(r, 500));
+      let waited = 0;
+      while (!head?.isSpeaking && waited < 4000) {
+        await new Promise(r => setTimeout(r, 100));
+        waited += 100;
+      }
+      while (head?.isSpeaking) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
+    // ── Speak a response ──────────────────────────
+    async function speakResponse(data) {
+      const text = data.response || "";
+      if (!text) return;
+
+      const words = data.words?.length ? data.words : text.split(/\s+/);
+      showSubtitle(words);
+
+      // Avatar looks at camera + gestures when starting to speak
+      head.lookAtCamera(500);
+      head.speakWithHands();
+
+      if (data.audio_url && data.words?.length > 0) {
+        let wordIdx = 0;
+        try {
+          const audioBuf = await decodeAudio(BACKEND + data.audio_url);
+          head.speakAudio(
+            { audio: audioBuf, words: data.words, wtimes: data.wtimes, wdurations: data.wdurations },
+            null,
+            (ev) => {
+              if (ev?.vs?.subtitles?.[0]) highlightWord(++wordIdx);
+            }
+          );
+        } catch (err) {
+          console.warn("speakAudio failed:", err);
+          head.speakText(text);
+        }
+      } else {
+        head.speakText(text);
+      }
+
+      await waitForSpeech();
+      subtitleBar.style.display = "none";
+    }
+
+    // ── Idle timer ────────────────────────────────
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(doIdle, IDLE_INTERVAL_MS);
+    }
+
+    // ── Queue ─────────────────────────────────────
+    function updateQueueIndicator() {
+      if (messageQueue.length > 0) {
+        queueEl.style.display = "block";
+        queueEl.textContent = `${messageQueue.length} message${messageQueue.length > 1 ? "s" : ""} queued`;
+      } else {
+        queueEl.style.display = "none";
+      }
+    }
+
+    async function processQueue() {
+      while (messageQueue.length > 0) {
+        const { message, username } = messageQueue.shift();
+        updateQueueIndicator();
+        await doChat(message, username);
+      }
+      updateQueueIndicator();
+    }
+
+    function enqueue(message, username) {
+      if (!isBusy && messageQueue.length === 0) {
+        processQueue();
+        messageQueue.unshift({ message, username });
+        messageQueue.shift();
+        doChat(message, username);
+      } else {
+        messageQueue.push({ message, username });
+        updateQueueIndicator();
+      }
+    }
+
+    // ── Chat ──────────────────────────────────────
+    async function doChat(message, username) {
+      isBusy = true;
+      sendBtn.disabled = true;
+      resetIdleTimer();
+      addMessage(message, "viewer", username);
+
+      const thinkEl = showThinking();
+      try {
+        const res = await fetch(`${BACKEND}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, username }),
+        });
+        const data = await res.json();
+        thinkEl.remove();
+        if (data.response) {
+          addMessage(data.response, "aria", "Aria");
+          if (data.mood) try { head.setMood(data.mood); } catch(_) {}
+          await speakResponse(data);
+        }
+      } catch (err) {
+        thinkEl.remove();
+        addMessage("(connection error)", "system");
+        console.error(err);
+      } finally {
+        isBusy = false;
+        sendBtn.disabled = messageQueue.length > 0;
+        resetIdleTimer();
+        if (messageQueue.length > 0) processQueue();
+      }
+    }
+
+    // ── Idle ──────────────────────────────────────
+    async function doIdle() {
+      if (isBusy) { resetIdleTimer(); return; }
+      isBusy = true;
+      try {
+        const res = await fetch(`${BACKEND}/idle`);
+        const data = await res.json();
+        if (data.response) {
+          addMessage(data.response, "aria", "Aria");
+          if (data.mood) try { head.setMood(data.mood); } catch(_) {}
+          await speakResponse(data);
+        }
+      } catch (_) {}
+      finally {
+        isBusy = false;
+        resetIdleTimer();
+      }
+    }
+
+    // ── Topic pills ───────────────────────────────
+    document.querySelectorAll(".pill").forEach(pill => {
+      pill.addEventListener("click", () => {
+        chatInput.value = pill.dataset.q;
+        chatInput.focus();
+      });
+    });
+
+    // ── Send ──────────────────────────────────────
+    function handleSend() {
+      if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
+      const msg  = chatInput.value.trim();
+      const user = usernameInput.value.trim() || "viewer";
+      if (!msg) return;
+      chatInput.value = "";
+
+      if (isBusy) {
+        messageQueue.push({ message: msg, username: user });
+        updateQueueIndicator();
+        addMessage(`(queued) ${msg}`, "system");
+      } else {
+        doChat(msg, user);
+      }
+    }
+
+    sendBtn.addEventListener("click", handleSend);
+    chatInput.addEventListener("keydown", e => { if (e.key === "Enter") handleSend(); });
+
+    // ── Viewer count ──────────────────────────────
+    let viewers = Math.floor(Math.random() * 60) + 25;
+    function tickViewers() {
+      viewers = Math.max(1, viewers + Math.floor(Math.random() * 5) - 2);
+      viewerCount.textContent = viewers.toLocaleString();
+      setTimeout(tickViewers, 3000 + Math.random() * 5000);
+    }
+
+    // ── Init ──────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", async () => {
+      tickViewers();
+
+      // Check backend
+      try {
+        await fetch(`${BACKEND}/health`);
+        statusDot.classList.add("online");
+      } catch (_) {
+        addMessage("Backend offline — start hermes_bridge.py", "system");
+      }
+
+      head = new TalkingHead(avatarEl, {
         lipsyncModules: ["en"],
         cameraView: "upper",
         cameraDistance: 0.4,
@@ -78,9 +740,7 @@
       });
 
       try {
-        nodeLoading.textContent = "Loading avatar...";
-
-        // Use the bundled brunette avatar
+        loadingTxt.textContent = "Loading Aria…";
         await head.showAvatar({
           url: './avatars/brunette.glb',
           body: 'F',
@@ -88,42 +748,19 @@
           lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) {
-            let pct = Math.min(100, Math.round(ev.loaded / ev.total * 100));
-            nodeLoading.textContent = "Loading avatar " + pct + "%";
+            loadingTxt.textContent = `Loading Aria… ${Math.round(ev.loaded / ev.total * 100)}%`;
           }
         });
-
-        nodeLoading.style.display = 'none';
-        addChatMessage('System', 'Avatar loaded! Type a message to chat.', '#888');
-        setStatus('Idle — waiting for chat');
-
-        // Start idle behavior (gestures/moods) + Twitch feed polling
-        // NOTE: idle TALK is handled by the Twitch bridge, not the frontend
-        startIdleBehavior();
-        startFeedPoller();
-
-      } catch (error) {
-        console.error(error);
-        nodeLoading.textContent = "Error: " + error.toString();
+        loadingEl.style.display = "none";
+        addMessage("Aria is live! Ask her anything about AI ✨", "system");
+        resetIdleTimer();
+      } catch (err) {
+        loadingTxt.textContent = "Failed to load avatar: " + err.message;
       }
 
-      // ── Chat input ──
-      const chatInput = document.getElementById('chat-input');
-      const chatSend = document.getElementById('chat-send');
-
-      // Resume audio context on first real user interaction
-      async function resumeAudio() {
-        try {
-          if (head && head.audioCtx && head.audioCtx.state === 'suspended') {
-            await head.audioCtx.resume();
-            console.log('AudioContext resumed');
-          }
-        } catch(e) { console.log('Audio resume:', e); }
-      }
-
-      chatSend.addEventListener('click', async () => { await resumeAudio(); sendChat(); });
-      chatInput.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter') { await resumeAudio(); sendChat(); }
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") head.start();
+        else head.stop();
       });
 
       // Also resume on any click on the page
@@ -413,14 +1050,39 @@
 </head>
 
 <body>
-  <div id="container">
-    <!-- Avatar panel -->
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div id="topbar-left">
+      <div id="live-badge"><div class="dot"></div>LIVE</div>
+      <div>
+        <div id="stream-title">Aria &mdash; AI Educator</div>
+        <div id="stream-subtitle">Ask me anything about AI</div>
+      </div>
+    </div>
+    <div id="topbar-right">
+      <div id="viewer-chip">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
+        </svg>
+        <span id="viewer-count">—</span> watching
+      </div>
+      <div id="status-dot" title="Backend status"></div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div id="main">
+
+    <!-- Avatar -->
     <div id="avatar-panel">
-      <div id="topbar">
-        <div id="live-dot"></div>
-        <span id="live-text">LIVE</span>
-        <span id="streamer-name">Aria — Just Chatting</span>
-        <span id="viewer-count">847 viewers</span>
+      <div id="avatar"></div>
+      <div id="avatar-glow"></div>
+      <div id="subtitle-bar"></div>
+      <div id="loading-overlay">
+        <div class="logo">aria.ai</div>
+        <div class="spinner"></div>
+        <div id="loading-text">Initializing…</div>
       </div>
       <div id="avatar"></div>
       <div id="debug"></div>
@@ -428,15 +1090,35 @@
       <div id="loading">Initializing...</div>
     </div>
 
-    <!-- Chat panel -->
+    <!-- Chat -->
     <div id="chat-panel">
-      <div id="chat-header">Stream Chat</div>
+      <div id="chat-header">💬 Ask Aria about AI</div>
+
+      <div id="topic-pills">
+        <span class="pill" data-q="What is a large language model?">LLMs</span>
+        <span class="pill" data-q="Explain RAG to me">RAG</span>
+        <span class="pill" data-q="What are AI agents?">Agents</span>
+        <span class="pill" data-q="How does fine-tuning work?">Fine-tuning</span>
+        <span class="pill" data-q="What are embeddings?">Embeddings</span>
+        <span class="pill" data-q="What is prompt engineering?">Prompting</span>
+      </div>
+
       <div id="chat-messages"></div>
-      <div id="chat-input-area">
-        <input id="chat-input" type="text" placeholder="Send a message...">
-        <button id="chat-send">Chat</button>
+
+      <div id="input-area">
+        <div id="input-row">
+          <input id="username-input" type="text" placeholder="name" value="viewer" spellcheck="false">
+          <input id="chat-input" type="text" placeholder="Ask about AI…" autocomplete="off" spellcheck="false">
+          <button id="send-btn" aria-label="Send">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5"/>
+            </svg>
+          </button>
+        </div>
+        <div id="queue-indicator"></div>
       </div>
     </div>
+
   </div>
 </body>
 </html>
