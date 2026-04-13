@@ -5,140 +5,52 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #0a0a0f;
-      --surface:   #111118;
-      --surface2:  #18181f;
-      --border:    rgba(255,255,255,0.07);
-      --accent:    #7c6ef5;
-      --accent2:   #56cfb2;
-      --text:      #e8e8f0;
-      --text-muted:#6b6b80;
-      --live:      #22c55e;
-      --danger:    #ef4444;
-      --radius:    12px;
+      --bg:        #06060b;
+      --surface:   rgba(12,12,20,0.85);
+      --surface2:  rgba(20,20,35,0.75);
+      --border:    rgba(255,255,255,0.06);
+      --accent:    #a78bfa;
+      --accent2:   #34d399;
+      --text:      #eeeef5;
+      --text-muted:#7a7a95;
+      --live:      #ef4444;
+      --radius:    14px;
+      --glass:     saturate(180%) blur(20px);
+      --font:      "Outfit", system-ui, sans-serif;
+      --mono:      "JetBrains Mono", monospace;
     }
 
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: "Inter", system-ui, sans-serif;
+      font-family: var(--font);
       height: 100vh;
-      display: flex;
-      flex-direction: column;
       overflow: hidden;
-    }
-
-    /* ── Top bar ────────────────────────────────── */
-    #topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
-      height: 48px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      z-index: 10;
-    }
-
-    #topbar-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    #live-badge {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      background: var(--danger);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      padding: 3px 8px;
-      border-radius: 4px;
-    }
-    #live-badge .dot {
-      width: 6px; height: 6px;
-      background: #fff;
-      border-radius: 50%;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    #stream-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    #stream-subtitle {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    #topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    #viewer-chip {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-    #viewer-chip svg { color: var(--accent2); }
-    #viewer-count { color: var(--text); font-weight: 600; }
-
-    #status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--text-muted);
-    }
-    #status-dot.online { background: var(--live); box-shadow: 0 0 6px var(--live); }
-
-    /* ── Main layout ────────────────────────────── */
-    #main {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-    }
-
-    /* ── Avatar panel ───────────────────────────── */
-    #avatar-panel {
-      flex: 1;
       position: relative;
-      background:
-        linear-gradient(180deg, #1a0825 0%, #0d0618 40%, #0a0412 100%);
-      overflow: hidden;
     }
 
-    /* Cozy room ambiance — warm light from below */
+    /* ── Full-screen avatar ─────────────────────── */
+    #avatar-panel {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(170deg, #0c0618 0%, #080412 50%, #060610 100%);
+      z-index: 0;
+    }
+
     #avatar-panel::before {
       content: "";
       position: absolute;
       inset: 0;
       background:
-        radial-gradient(ellipse at 30% 90%, rgba(255,160,60,.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 70% 85%, rgba(180,120,255,.06) 0%, transparent 45%),
-        radial-gradient(ellipse at 50% 20%, rgba(60,40,120,.15) 0%, transparent 60%);
+        radial-gradient(ellipse at 40% 85%, rgba(167,139,250,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 65% 80%, rgba(52,211,153,0.05) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 15%, rgba(80,50,150,0.12) 0%, transparent 55%);
       pointer-events: none;
     }
 
@@ -150,316 +62,318 @@
       z-index: 1;
     }
 
-    /* Glow under avatar */
     #avatar-glow {
       position: absolute;
-      bottom: 0;
+      bottom: -20px;
       left: 50%;
       transform: translateX(-50%);
-      width: 60%;
-      height: 120px;
-      background: radial-gradient(ellipse, rgba(124,110,245,0.25) 0%, transparent 70%);
+      width: 50%;
+      height: 180px;
+      background: radial-gradient(ellipse, rgba(167,139,250,0.18) 0%, transparent 70%);
       pointer-events: none;
       z-index: 2;
     }
 
-    /* ── Now talking banner ──────────────────────── */
-    #now-talking {
-      position: absolute; top: 16px; left: 16px;
-      background: linear-gradient(135deg, rgba(124,110,245,0.9), rgba(86,207,178,0.85));
-      color: white; padding: 8px 16px; border-radius: 20px;
-      font-size: 13px; font-weight: 600;
-      box-shadow: 0 4px 20px rgba(124,110,245,0.4);
-      backdrop-filter: blur(10px);
-      z-index: 5;
-      max-width: 60%;
-      display: none;
-      animation: slideIn 0.4s ease-out;
+    /* ── Glass overlays ─────────────────────────── */
+
+    /* Top bar — thin, floating */
+    #topbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 340px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      background: var(--surface);
+      backdrop-filter: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      z-index: 10;
     }
-    #now-talking::before { content: "💬 "; }
-    @keyframes slideIn { from { opacity:0; transform:translateY(-10px) } to { opacity:1; transform:translateY(0) } }
+
+    #topbar-left { display: flex; align-items: center; gap: 10px; }
+
+    #live-badge {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--live); color: #fff;
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      padding: 3px 10px; border-radius: 6px;
+      text-transform: uppercase;
+    }
+    #live-badge .dot {
+      width: 6px; height: 6px; background: #fff;
+      border-radius: 50%; animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    #stream-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    #stream-subtitle { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
+    #topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    #viewer-chip {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 500; color: var(--text-muted);
+    }
+    #viewer-chip svg { color: var(--accent2); width: 12px; height: 12px; }
+    #viewer-count { color: var(--text); font-weight: 600; font-family: var(--mono); }
+
+    #status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+    #status-dot.online { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
+    /* ── Now talking ────────────────────────────── */
+    #now-talking {
+      position: absolute; top: 70px; left: 16px;
+      background: var(--surface);
+      backdrop-filter: var(--glass);
+      border: 1px solid var(--border);
+      color: var(--accent2); padding: 6px 14px; border-radius: 12px;
+      font-size: 12px; font-weight: 500;
+      max-width: 55%;
+      display: none; z-index: 5;
+      animation: fadeSlide 0.3s ease-out;
+    }
+    #now-talking::before { content: "● "; color: var(--accent2); }
 
     /* ── Floating reactions ──────────────────────── */
     .reaction {
       position: absolute; pointer-events: none; z-index: 6;
-      font-size: 28px; opacity: 1;
+      font-size: 26px;
       animation: floatUp 3s ease-out forwards;
     }
     @keyframes floatUp {
       0% { transform: translateY(0) scale(0.5); opacity: 0; }
-      15% { transform: translateY(-20px) scale(1.2); opacity: 1; }
-      100% { transform: translateY(-300px) scale(0.8) rotate(20deg); opacity: 0; }
+      15% { transform: translateY(-20px) scale(1.1); opacity: 1; }
+      100% { transform: translateY(-280px) scale(0.7) rotate(15deg); opacity: 0; }
     }
 
-    /* ── Stream stats overlay ─────────────────────── */
+    /* ── Stream stats ───────────────────────────── */
     #stream-stats {
-      position: absolute; bottom: 80px; left: 16px;
-      display: flex; gap: 8px; flex-direction: column;
+      position: absolute; bottom: 16px; left: 16px;
+      display: flex; gap: 6px;
       z-index: 5;
     }
     .stat-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(10,10,15,0.7); backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 5px 10px; border-radius: 14px;
-      font-size: 11px; color: var(--text-muted);
-      font-family: var(--mono, monospace);
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--surface); backdrop-filter: var(--glass);
+      border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 10px;
+      font-size: 10px; font-family: var(--mono);
+      color: var(--text-muted);
     }
-    .stat-pill .label { color: var(--text-muted); }
-    .stat-pill .value { color: #fff; font-weight: 600; }
-    .stat-pill .dot { width:6px; height:6px; border-radius:50%; background: var(--live, #22c55e); }
+    .stat-pill .label { opacity: 0.7; }
+    .stat-pill .value { color: var(--text); font-weight: 600; }
+    .stat-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent2); }
 
     /* ── Subtitle ───────────────────────────────── */
     #subtitle-bar {
       position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 80%;
-      background: rgba(10,10,15,0.88);
-      backdrop-filter: blur(8px);
+      bottom: 50px; left: 50%; transform: translateX(-50%);
+      max-width: 65%;
+      background: var(--surface);
+      backdrop-filter: var(--glass);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 8px 18px;
-      font-size: 15px;
-      font-weight: 500;
-      text-align: center;
-      color: var(--text);
-      display: none;
-      z-index: 5;
-      line-height: 1.5;
+      padding: 10px 22px;
+      font-size: 15px; font-weight: 400;
+      text-align: center; color: var(--text);
+      display: none; z-index: 5;
+      line-height: 1.6;
+      letter-spacing: 0.01em;
     }
     #subtitle-bar .word { display: inline; }
-    #subtitle-bar .word.spoken { color: var(--accent2); }
+    #subtitle-bar .word.spoken { color: var(--accent2); font-weight: 500; }
 
-    /* ── Loading overlay ────────────────────────── */
+    /* ── Loading ────────────────────────────────── */
     #loading-overlay {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 20;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px; z-index: 20;
     }
     #loading-overlay .logo {
-      font-size: 28px;
-      font-weight: 700;
+      font-size: 32px; font-weight: 700; letter-spacing: -0.5px;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
     #loading-overlay .spinner {
-      width: 32px; height: 32px;
+      width: 28px; height: 28px;
       border: 2px solid var(--border);
       border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-text { font-size: 13px; color: var(--text-muted); }
+    #loading-text { font-size: 12px; color: var(--text-muted); }
 
-    /* ── Chat sidebar ───────────────────────────── */
+    /* ── Chat panel — floating glass sidebar ────── */
     #chat-panel {
-      width: 320px;
-      display: flex;
-      flex-direction: column;
+      position: absolute;
+      top: 12px; right: 12px; bottom: 12px;
+      width: 310px;
+      display: flex; flex-direction: column;
       background: var(--surface);
-      border-left: 1px solid var(--border);
+      backdrop-filter: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      z-index: 10;
     }
 
     #chat-header {
-      padding: 12px 16px;
-      font-size: 13px;
-      font-weight: 600;
+      padding: 14px 16px 10px;
+      font-size: 12px; font-weight: 600;
       color: var(--text-muted);
-      border-bottom: 1px solid var(--border);
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
     }
 
-    /* Topic pills */
     #topic-pills {
-      display: flex;
-      gap: 6px;
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
+      display: flex; gap: 5px; padding: 0 12px 10px; flex-wrap: wrap;
     }
     .pill {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 3px 10px;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
+      background: rgba(167,139,250,0.08);
+      border: 1px solid rgba(167,139,250,0.15);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 10px; font-weight: 500;
+      color: var(--accent); cursor: pointer;
+      transition: all 0.15s; white-space: nowrap;
     }
     .pill:hover {
+      background: rgba(167,139,250,0.18);
       border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(124,110,245,0.1);
+    }
+
+    #hair-picker {
+      padding: 6px 12px 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 4px;
     }
 
     /* Messages */
     #chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--surface2) transparent;
+      flex: 1; overflow-y: auto;
+      padding: 8px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      scrollbar-width: none;
     }
+    #chat-messages::-webkit-scrollbar { display: none; }
 
-    .msg {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      max-width: 92%;
-      animation: fadeSlide 0.2s ease-out;
-    }
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+    .msg { display: flex; flex-direction: column; gap: 3px; max-width: 95%; animation: fadeSlide 0.25s ease-out; }
+    @keyframes fadeSlide { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
 
-    .msg-meta {
-      display: flex;
-      align-items: baseline;
-      gap: 5px;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-    .msg-meta .username { font-weight: 600; font-size: 12px; }
-    .msg-meta .time { font-size: 10px; }
+    .msg-meta { display: flex; align-items: baseline; gap: 6px; font-size: 10px; color: var(--text-muted); }
+    .msg-meta .username { font-weight: 600; font-size: 11px; }
+    .msg-meta .time { font-size: 9px; font-family: var(--mono); opacity: 0.6; }
 
     .msg-bubble {
-      padding: 8px 11px;
-      border-radius: 10px;
-      font-size: 13px;
-      line-height: 1.45;
+      padding: 8px 12px; border-radius: 12px;
+      font-size: 12.5px; line-height: 1.5;
       word-break: break-word;
     }
 
     .msg.viewer { align-self: flex-end; align-items: flex-end; }
     .msg.viewer .msg-bubble {
-      background: rgba(124,110,245,0.18);
-      border: 1px solid rgba(124,110,245,0.25);
-      color: #ccc8ff;
+      background: rgba(167,139,250,0.12);
+      border: 1px solid rgba(167,139,250,0.2);
+      color: #d4ccff;
     }
 
     .msg.aria { align-self: flex-start; align-items: flex-start; }
     .msg.aria .msg-meta .username { color: var(--accent2); }
     .msg.aria .msg-bubble {
-      background: var(--surface2);
-      border: 1px solid var(--border);
+      background: rgba(52,211,153,0.06);
+      border: 1px solid rgba(52,211,153,0.12);
       color: var(--text);
     }
 
-    .msg.system {
-      align-self: center;
-      align-items: center;
-    }
+    .msg.system { align-self: center; }
     .msg.system .msg-bubble {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 11px;
-      padding: 2px 6px;
+      background: transparent; border: none;
+      color: var(--text-muted); font-size: 10px; padding: 2px;
     }
 
-    /* Thinking dots */
-    .msg.thinking .msg-bubble {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-      padding: 10px 14px;
-    }
+    .msg.thinking .msg-bubble { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
     .thinking-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--text-muted);
+      width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted);
       animation: bounce 1.2s ease-in-out infinite;
     }
     .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
     .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes bounce {
-      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-      40% { transform: translateY(-5px); opacity: 1; }
-    }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-4px);opacity:1} }
 
-    /* ── Input area ─────────────────────────────── */
+    /* Input */
     #input-area {
-      padding: 10px 12px;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
+      padding: 10px; border-top: 1px solid var(--border);
     }
-
-    #input-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
+    #input-row { display: flex; gap: 6px; align-items: center; }
 
     #username-input {
-      width: 72px;
-      padding: 8px 9px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-muted);
-      font-size: 12px;
-      font-family: inherit;
+      width: 60px; padding: 7px 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text-muted); font-size: 11px; font-family: var(--font);
     }
 
     #chat-input {
-      flex: 1;
-      padding: 8px 12px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 13px;
-      font-family: inherit;
+      flex: 1; padding: 7px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-size: 12px; font-family: var(--font);
       transition: border-color 0.15s;
     }
-    #chat-input:focus, #username-input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
+    #chat-input:focus, #username-input:focus { outline: none; border-color: var(--accent); }
+    #chat-input::placeholder { color: var(--text-muted); }
 
     #send-btn {
-      width: 36px; height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--accent);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-      flex-shrink: 0;
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--accent), #8b6cf5);
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: transform 0.1s; flex-shrink: 0;
     }
-    #send-btn:hover { background: #9185f7; }
+    #send-btn:hover { transform: scale(1.05); }
     #send-btn:active { transform: scale(0.93); }
     #send-btn:disabled { background: var(--surface2); cursor: not-allowed; }
-    #send-btn svg { width: 16px; height: 16px; color: #fff; }
+    #send-btn svg { width: 15px; height: 15px; color: #fff; }
 
     #queue-indicator {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 5px;
-      text-align: center;
-      display: none;
+      font-size: 10px; color: var(--text-muted);
+      margin-top: 4px; text-align: center; display: none;
     }
+
+    /* ── Hidden elements ────────────────────────── */
+    #debug, #status, #loading { display: none; }
+
+    /* ── Ambient particles (CSS only) ───────────── */
+    #avatar-panel::after {
+      content: "";
+      position: absolute;
+      width: 2px; height: 2px;
+      top: 20%; left: 30%;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow:
+        120px 80px 0 0 rgba(167,139,250,0.3),
+        300px 150px 0 0 rgba(52,211,153,0.25),
+        500px 50px 0 0 rgba(167,139,250,0.2),
+        80px 300px 0 0 rgba(52,211,153,0.15),
+        400px 250px 0 0 rgba(167,139,250,0.2),
+        600px 350px 0 0 rgba(52,211,153,0.3),
+        200px 400px 0 0 rgba(167,139,250,0.15);
+      animation: drift 30s ease-in-out infinite alternate;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes drift { 0%{transform:translate(0,0)} 100%{transform:translate(30px,-20px)} }
+
+    /* ── Hidden layout helpers (no #main flex) ──── */
+    #main { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    #main > * { pointer-events: auto; }
   </style>
 
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.7.1/dist/es-module-shims.js"></script>
@@ -479,15 +393,13 @@
 
     const BACKEND = "http://localhost:5001";
     const AVATAR_URL = "./avatars/brunette.glb";
-    const IDLE_INTERVAL_MS = 3000; // 3s gap between speech — keeps Aria talking constantly
+    const IDLE_INTERVAL_MS = 3000;
 
-    // ── State ─────────────────────────────────────
     let head;
     let isBusy = false;
     let messageQueue = [];
     let idleTimer = null;
 
-    // ── DOM ───────────────────────────────────────
     const avatarEl     = document.getElementById("avatar");
     const loadingEl    = document.getElementById("loading-overlay");
     const loadingTxt   = document.getElementById("loading-text");
@@ -500,28 +412,23 @@
     const viewerCount  = document.getElementById("viewer-count");
     const queueEl      = document.getElementById("queue-indicator");
 
-    // ── Username → color ──────────────────────────
     const userColors = new Map();
     function getUserColor(name) {
       if (!userColors.has(name)) {
         let h = 0;
         for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-        const hue = h % 360;
-        userColors.set(name, `hsl(${hue},65%,68%)`);
+        userColors.set(name, `hsl(${h%360},65%,68%)`);
       }
       return userColors.get(name);
     }
 
-    // ── Time helper ───────────────────────────────
     function timeNow() {
       return new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
     }
 
-    // ── Messages ──────────────────────────────────
     function addMessage(text, type, username = "", stream = false) {
       const wrap = document.createElement("div");
       wrap.className = `msg ${type}`;
-
       if (type !== "system") {
         const meta = document.createElement("div");
         meta.className = "msg-meta";
@@ -538,35 +445,25 @@
         meta.appendChild(t);
         wrap.appendChild(meta);
       }
-
       const bubble = document.createElement("div");
       bubble.className = "msg-bubble";
-
       if (stream && type === "aria") {
-        // Typewriter effect — stream word by word
         bubble.textContent = "";
         wrap.appendChild(bubble);
         chatMsgs.appendChild(wrap);
         chatMsgs.scrollTop = chatMsgs.scrollHeight;
-
-        const words = text.split(/(\s+)/); // keep whitespace
+        const words = text.split(/(\s+)/);
         let i = 0;
         const typeInterval = setInterval(() => {
-          if (i < words.length) {
-            bubble.textContent += words[i];
-            i++;
-            chatMsgs.scrollTop = chatMsgs.scrollHeight;
-          } else {
-            clearInterval(typeInterval);
-          }
-        }, 60); // ~60ms per word chunk
+          if (i < words.length) { bubble.textContent += words[i]; i++; chatMsgs.scrollTop = chatMsgs.scrollHeight; }
+          else clearInterval(typeInterval);
+        }, 60);
       } else {
         bubble.textContent = text;
         wrap.appendChild(bubble);
         chatMsgs.appendChild(wrap);
         chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
-
       return wrap;
     }
 
@@ -590,7 +487,6 @@
       return wrap;
     }
 
-    // ── Subtitle (word by word) ───────────────────
     function showSubtitle(words) {
       subtitleBar.innerHTML = "";
       words.forEach((w, i) => {
@@ -609,7 +505,6 @@
       });
     }
 
-    // ── Audio helpers ─────────────────────────────
     async function decodeAudio(url) {
       const res = await fetch(url);
       const buf = await res.arrayBuffer();
@@ -619,27 +514,17 @@
     async function waitForSpeech() {
       await new Promise(r => setTimeout(r, 500));
       let waited = 0;
-      while (!head?.isSpeaking && waited < 4000) {
-        await new Promise(r => setTimeout(r, 100));
-        waited += 100;
-      }
-      while (head?.isSpeaking) {
-        await new Promise(r => setTimeout(r, 100));
-      }
+      while (!head?.isSpeaking && waited < 4000) { await new Promise(r => setTimeout(r, 100)); waited += 100; }
+      while (head?.isSpeaking) { await new Promise(r => setTimeout(r, 100)); }
     }
 
-    // ── Speak a response ──────────────────────────
     async function speakResponse(data) {
       const text = data.response || "";
       if (!text) return;
-
       const words = data.words?.length ? data.words : text.split(/\s+/);
       showSubtitle(words);
-
-      // Avatar looks at camera + gestures when starting to speak
       head.lookAtCamera(500);
       head.speakWithHands();
-
       if (data.audio_url && data.words?.length > 0) {
         let wordIdx = 0;
         try {
@@ -647,81 +532,49 @@
           head.speakAudio(
             { audio: audioBuf, words: data.words, wtimes: data.wtimes, wdurations: data.wdurations },
             null,
-            (ev) => {
-              if (ev?.vs?.subtitles?.[0]) highlightWord(++wordIdx);
-            }
+            (ev) => { if (ev?.vs?.subtitles?.[0]) highlightWord(++wordIdx); }
           );
-        } catch (err) {
-          console.warn("speakAudio failed:", err);
-          head.speakText(text);
-        }
-      } else {
-        head.speakText(text);
-      }
-
+        } catch (err) { console.warn("speakAudio failed:", err); head.speakText(text); }
+      } else { head.speakText(text); }
       await waitForSpeech();
       subtitleBar.style.display = "none";
     }
 
-    // ── Idle timer ────────────────────────────────
     function resetIdleTimer() {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(doIdle, IDLE_INTERVAL_MS);
     }
 
-    // ── Queue ─────────────────────────────────────
     function updateQueueIndicator() {
-      if (messageQueue.length > 0) {
-        queueEl.style.display = "block";
-        queueEl.textContent = `${messageQueue.length} message${messageQueue.length > 1 ? "s" : ""} queued`;
-      } else {
-        queueEl.style.display = "none";
-      }
+      if (messageQueue.length > 0) { queueEl.style.display = "block"; queueEl.textContent = `${messageQueue.length} queued`; }
+      else { queueEl.style.display = "none"; }
     }
 
-    // ── Chat — fetch response and insert at front of speech queue ──
     async function doChat(message, username) {
       resetIdleTimer();
       try {
-        const res = await fetch(`${BACKEND}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, username }),
-        });
+        const res = await fetch(`${BACKEND}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, username }) });
         const data = await res.json();
-        if (data.response) {
-          enqueueSpeech(data, "chat");
-        }
-      } catch (err) {
-        console.error("Chat error:", err);
-      }
+        if (data.response) enqueueSpeech(data, "chat");
+      } catch (err) { console.error("Chat error:", err); }
     }
 
-    // ── Idle — actively keeps the speech queue full ──
     let _idleFetching = false;
     async function doIdle() {
-      // Don't fetch more if queue already has plenty
       if (speechQueue.length >= 3 || _idleFetching) return;
       _idleFetching = true;
       try {
         const res = await fetch(`${BACKEND}/idle`);
         const data = await res.json();
-        if (data.response) {
-          enqueueSpeech(data, "idle");
-        }
+        if (data.response) enqueueSpeech(data, "idle");
       } catch (_) {}
       _idleFetching = false;
     }
 
-    // Run continuously — every 1s check if queue needs more
-    setInterval(() => {
-      // Pause if backend says it's not active (saves tokens)
-      if (speechQueue.length < 3) doIdle();
-    }, 1000);
+    setInterval(() => { if (speechQueue.length < 3) doIdle(); }, 1000);
 
-    // ── Twitch feed poller — picks up messages from Twitch chat ──
     let lastFeedId = 0;
-    let ownMessages = new Set(); // messages sent from this UI, skip in feed
+    let ownMessages = new Set();
 
     function startFeedPoller() {
       setInterval(async () => {
@@ -729,78 +582,39 @@
           const res = await fetch(`${BACKEND}/feed?since=${lastFeedId}`);
           const data = await res.json();
           if (!data.messages || data.messages.length === 0) return;
-
           for (const msg of data.messages) {
             lastFeedId = Math.max(lastFeedId, msg.id);
-
-            // Skip messages we sent from this web UI
-            if (msg.message && ownMessages.has(msg.message)) {
-              ownMessages.delete(msg.message);
-              continue;
-            }
-
-            // Skip idle messages (handled by doIdle)
+            if (msg.message && ownMessages.has(msg.message)) { ownMessages.delete(msg.message); continue; }
             if (msg.is_idle) continue;
-
-            // Skip if we're already busy (queue it visually)
             if (!msg.response || !msg.audio_url) continue;
-
-            // Insert Twitch chat response at front of queue
             enqueueSpeech(msg, "feed", msg.message, msg.username);
-            // Floating reaction emoji
-            const emojis = ["💜", "✨", "🔥", "👀", "💫", "🌟"];
-            spawnReaction(emojis[Math.floor(Math.random() * emojis.length)], msg.username);
+            const emojis = ["💜","✨","🔥","👀","💫","🌟"];
+            spawnReaction(emojis[Math.floor(Math.random()*emojis.length)], msg.username);
           }
-
-          if (data.latest_id !== undefined) {
-            lastFeedId = Math.max(lastFeedId, data.latest_id);
-          }
+          if (data.latest_id !== undefined) lastFeedId = Math.max(lastFeedId, data.latest_id);
         } catch (_) {}
       }, 2000);
     }
 
-    // Start feed poller on load
     startFeedPoller();
 
-    // ── Topic pills ───────────────────────────────
     document.querySelectorAll(".pill").forEach(pill => {
-      pill.addEventListener("click", () => {
-        chatInput.value = pill.dataset.q;
-        chatInput.focus();
-      });
+      pill.addEventListener("click", () => { chatInput.value = pill.dataset.q; chatInput.focus(); });
     });
 
-    // ── Speech queue — plays items one at a time ──
     let speechQueue = [];
     let isPlaying = false;
-    const seenResponses = new Set();  // dedupe by response text
+    const seenResponses = new Set();
 
     function enqueueSpeech(data, type = "idle", viewerMsg = null, viewerName = null) {
-      // Dedupe — skip if we've already queued/spoken this exact response
       const key = (data?.response || "") + "|" + (data?.audio_url || "");
-      if (seenResponses.has(key)) {
-        console.log("Skipping duplicate:", key.slice(0, 50));
-        return;
-      }
+      if (seenResponses.has(key)) return;
       seenResponses.add(key);
-      // Keep dedupe set bounded
-      if (seenResponses.size > 50) {
-        const first = seenResponses.values().next().value;
-        seenResponses.delete(first);
-      }
-
+      if (seenResponses.size > 50) { const first = seenResponses.values().next().value; seenResponses.delete(first); }
       const item = { data, type, viewerMsg, viewerName };
-      if (type === "chat" || type === "feed") {
-        speechQueue.unshift(item);
-      } else {
-        speechQueue.push(item);
-      }
-
-      // Start processing if not already
-      if (!isPlaying) {
-        isPlaying = true;  // set synchronously to prevent race
-        processQueue();
-      }
+      if (type === "chat" || type === "feed") speechQueue.unshift(item);
+      else speechQueue.push(item);
+      if (!isPlaying) { isPlaying = true; processQueue(); }
     }
 
     async function processQueue() {
@@ -809,69 +623,41 @@
           const item = speechQueue.shift();
           isBusy = true;
           updateStats();
-
-          if (item.viewerMsg && item.viewerName) {
-            addMessage(item.viewerMsg, "viewer", item.viewerName);
-            spawnReaction("💬", item.viewerName);
-          }
-
+          if (item.viewerMsg && item.viewerName) { addMessage(item.viewerMsg, "viewer", item.viewerName); spawnReaction("💬", item.viewerName); }
           if (item.data?.response) {
             addMessage(item.data.response, "aria", "Aria", true);
             if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
-
-            // Show "now talking about" banner — first sentence as topic
             showNowTalking(item.data.response);
-
-            // Increment segment counter
             window._segmentCount = (window._segmentCount || 0) + 1;
             updateStats();
-
-            try {
-              await speakResponse(item.data);
-            } catch (e) {
-              console.error("Speech error:", e);
-            }
+            try { await speakResponse(item.data); } catch (e) { console.error("Speech error:", e); }
           }
         }
         hideNowTalking();
-      } finally {
-        isPlaying = false;
-        isBusy = false;
-        resetIdleTimer();
-        updateStats();
-      }
+      } finally { isPlaying = false; isBusy = false; resetIdleTimer(); updateStats(); }
     }
 
-    // ── UI: Now talking banner ─────────────────────
     function showNowTalking(text) {
       const banner = document.getElementById("now-talking");
       if (!banner) return;
-      // Take first ~60 chars as the topic preview
       const preview = text.length > 60 ? text.slice(0, 60).split(/[.!?]/)[0] + "..." : text;
       banner.textContent = preview;
       banner.style.display = "block";
     }
-    function hideNowTalking() {
-      const banner = document.getElementById("now-talking");
-      if (banner) banner.style.display = "none";
-    }
+    function hideNowTalking() { const b = document.getElementById("now-talking"); if (b) b.style.display = "none"; }
 
-    // ── UI: Floating reactions ─────────────────────
-    function spawnReaction(emoji, label) {
+    function spawnReaction(emoji) {
       const panel = document.getElementById("avatar-panel");
       if (!panel) return;
       const el = document.createElement("div");
       el.className = "reaction";
       el.textContent = emoji;
-      const x = 20 + Math.random() * (panel.offsetWidth - 100);
-      const y = panel.offsetHeight - 80 - Math.random() * 80;
-      el.style.left = x + "px";
-      el.style.top = y + "px";
+      el.style.left = (20 + Math.random() * (panel.offsetWidth - 400)) + "px";
+      el.style.top = (panel.offsetHeight - 100 - Math.random() * 100) + "px";
       panel.appendChild(el);
       setTimeout(() => el.remove(), 3000);
     }
 
-    // ── UI: Stats ──────────────────────────────────
     const _streamStart = Date.now();
     function updateStats() {
       const upEl = document.getElementById("stat-uptime");
@@ -887,38 +673,23 @@
     }
     setInterval(updateStats, 1000);
 
-    // ── Send ──────────────────────────────────────
     function handleSend() {
       if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
-      const msg  = chatInput.value.trim();
+      const msg = chatInput.value.trim();
       const user = usernameInput.value.trim() || "viewer";
       if (!msg) return;
       chatInput.value = "";
       ownMessages.add(msg);
-
-      // Show user message immediately
       addMessage(msg, "viewer", user);
-
-      // Fetch response and insert at front of queue
       resetIdleTimer();
-      fetch(`${BACKEND}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, username: user }),
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.response) {
-          enqueueSpeech(data, "chat");
-        }
-      })
-      .catch(err => console.error("Chat error:", err));
+      fetch(`${BACKEND}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, username: user }) })
+        .then(r => r.json()).then(data => { if (data.response) enqueueSpeech(data, "chat"); })
+        .catch(err => console.error("Chat error:", err));
     }
 
     sendBtn.addEventListener("click", handleSend);
     chatInput.addEventListener("keydown", e => { if (e.key === "Enter") handleSend(); });
 
-    // ── Viewer count ──────────────────────────────
     let viewers = Math.floor(Math.random() * 60) + 25;
     function tickViewers() {
       viewers = Math.max(1, viewers + Math.floor(Math.random() * 5) - 2);
@@ -926,25 +697,20 @@
       setTimeout(tickViewers, 3000 + Math.random() * 5000);
     }
 
-    // ── Init ──────────────────────────────────────
+    async function resumeAudio() {
+      try { if (head?.audioCtx?.state === "suspended") await head.audioCtx.resume(); } catch(e) {}
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       tickViewers();
-
-      // Check backend
-      try {
-        await fetch(`${BACKEND}/health`);
-        statusDot.classList.add("online");
-      } catch (_) {
-        addMessage("Backend offline — start hermes_bridge.py", "system");
-      }
+      try { await fetch(`${BACKEND}/health`); statusDot.classList.add("online"); }
+      catch (_) { addMessage("Backend offline — start hermes_bridge.py", "system"); }
 
       head = new TalkingHead(avatarEl, {
         lipsyncModules: ["en"],
         cameraView: "mid",
         cameraDistance: 0.5,
-        cameraX: 0,
-        cameraY: 0,
-        cameraRotateX: 0
+        cameraX: 0, cameraY: 0, cameraRotateX: 0
       });
 
       try {
@@ -970,60 +736,42 @@
           ],
           lipsyncLang: 'en'
         }, (ev) => {
-          if (ev.lengthComputable) {
-            loadingTxt.textContent = `Loading Aria… ${Math.round(ev.loaded / ev.total * 100)}%`;
-          }
+          if (ev.lengthComputable) loadingTxt.textContent = `Loading Aria… ${Math.round(ev.loaded / ev.total * 100)}%`;
         });
 
-        // ── Customize avatar appearance ──
         const THREE = await import("three");
-
-        // Hair style presets (VRoid uses different material names than brunette)
         window.hairStyles = {
           default:  { scale: [1, 1, 1],       pos: [0, 0, 0],    color: 0x1a1a1a, label: "Default" },
-          long:     { scale: [1, 1.35, 1.05], pos: [0, -0.02, 0], color: 0x1a1a1a, label: "Long & Sleek" },
-          volume:   { scale: [1.15, 1.1, 1.15], pos: [0, 0.01, 0], color: 0x2a1a0e, label: "Voluminous Brown" },
-          pixie:    { scale: [0.95, 0.7, 0.95], pos: [0, 0.01, 0], color: 0x1a1a1a, label: "Short Pixie" },
-          blonde:   { scale: [1.05, 1.15, 1.05], pos: [0, 0, 0],  color: 0xd4b878, label: "Blonde Bob" },
-          redhead:  { scale: [1.08, 1.2, 1.08], pos: [0, -0.01, 0], color: 0x8b3a1a, label: "Fiery Red" },
-          silver:   { scale: [1.1, 1.25, 1.1], pos: [0, -0.01, 0], color: 0xc0c0d0, label: "Silver Long" },
-          anime:    { scale: [1.2, 1.15, 1.15], pos: [0, 0.02, 0], color: 0x663399, label: "Purple Anime" },
+          long:     { scale: [1, 1.35, 1.05], pos: [0, -0.02, 0], color: 0x1a1a1a, label: "Long" },
+          volume:   { scale: [1.15, 1.1, 1.15], pos: [0, 0.01, 0], color: 0x2a1a0e, label: "Brown" },
+          pixie:    { scale: [0.95, 0.7, 0.95], pos: [0, 0.01, 0], color: 0x1a1a1a, label: "Pixie" },
+          blonde:   { scale: [1.05, 1.15, 1.05], pos: [0, 0, 0],  color: 0xd4b878, label: "Blonde" },
+          redhead:  { scale: [1.08, 1.2, 1.08], pos: [0, -0.01, 0], color: 0x8b3a1a, label: "Red" },
+          silver:   { scale: [1.1, 1.25, 1.1], pos: [0, -0.01, 0], color: 0xc0c0d0, label: "Silver" },
+          anime:    { scale: [1.2, 1.15, 1.15], pos: [0, 0.02, 0], color: 0x663399, label: "Purple" },
         };
-
-        // Find the hair mesh
         let hairMesh = null;
-        head.armature?.traverse((obj) => {
-          if (obj.isMesh && obj.material?.name === 'Wolf3D_Hair') hairMesh = obj;
-        });
-
+        head.armature?.traverse((obj) => { if (obj.isMesh && obj.material?.name === 'Wolf3D_Hair') hairMesh = obj; });
         window.setHairStyle = function(styleName) {
           const style = window.hairStyles[styleName];
           if (!style || !hairMesh) return;
-          hairMesh.scale.set(...style.scale);
-          hairMesh.position.set(...style.pos);
+          hairMesh.scale.set(...style.scale); hairMesh.position.set(...style.pos);
           hairMesh.material = hairMesh.material.clone();
           hairMesh.material.color = new THREE.Color(style.color);
           hairMesh.material.needsUpdate = true;
           localStorage.setItem('hairStyle', styleName);
         };
-
-        // Apply saved style or default
         window.setHairStyle(localStorage.getItem('hairStyle') || 'long');
-
-        // Populate hair style picker
         const picker = document.getElementById('hair-picker');
         if (picker) {
           Object.entries(window.hairStyles).forEach(([key, style]) => {
             const btn = document.createElement('span');
-            btn.className = 'pill';
-            btn.textContent = style.label;
+            btn.className = 'pill'; btn.textContent = style.label;
             btn.style.cursor = 'pointer';
             btn.addEventListener('click', () => window.setHairStyle(key));
             picker.appendChild(btn);
           });
         }
-
-        // Also recolor outfit
         head.armature?.traverse((obj) => {
           if (obj.isMesh && obj.material?.name === 'Wolf3D_Outfit_Top') {
             obj.material = obj.material.clone();
@@ -1031,157 +779,111 @@
           }
         });
 
-        // ── Movement & Personality loops ──
         startMovementLoops();
-
         loadingEl.style.display = "none";
         addMessage("Aria is live! Ask her anything about AI ✨", "system");
         resetIdleTimer();
-      } catch (err) {
-        loadingTxt.textContent = "Failed to load avatar: " + err.message;
-      }
+      } catch (err) { loadingTxt.textContent = "Failed to load avatar: " + err.message; }
 
-      // ── Movement loops — keep avatar feeling alive ──
       function startMovementLoops() {
-        const gestures = ['handup', 'side', 'shrug', 'index', 'thumbup', 'ok', 'namaste'];
-        const moods = ['neutral', 'happy', 'happy', 'happy', 'love'];
-
-        // Random gesture every 12-25s
+        const gestures = ['handup','side','shrug','index','thumbup','ok','namaste'];
+        const moods = ['neutral','happy','happy','happy','love'];
         function nextGesture() {
-          if (head?.armature && isPlaying) {
-            try {
-              const g = gestures[Math.floor(Math.random() * gestures.length)];
-              head.playGesture(g, 1.5 + Math.random() * 2);
-            } catch (e) {}
-          }
-          setTimeout(nextGesture, 12000 + Math.random() * 13000);
+          if (head?.armature && isPlaying) try { head.playGesture(gestures[Math.floor(Math.random()*gestures.length)], 1.5+Math.random()*2); } catch(e){}
+          setTimeout(nextGesture, 12000+Math.random()*13000);
         }
         setTimeout(nextGesture, 5000);
-
-        // Random mood shifts every 30-60s
-        function nextMood() {
-          try {
-            head?.setMood(moods[Math.floor(Math.random() * moods.length)]);
-          } catch (e) {}
-          setTimeout(nextMood, 30000 + Math.random() * 30000);
-        }
+        function nextMood() { try { head?.setMood(moods[Math.floor(Math.random()*moods.length)]); } catch(e){} setTimeout(nextMood, 30000+Math.random()*30000); }
         setTimeout(nextMood, 15000);
-
-        // Look around occasionally — adds life
         function nextGlance() {
-          if (head?.armature) {
-            try {
-              const dx = (Math.random() - 0.5) * 0.4;
-              const dy = (Math.random() - 0.5) * 0.2;
-              head.lookAt(dx, dy, 1, 600 + Math.random() * 400);
-              setTimeout(() => head.lookAtCamera(800), 1500 + Math.random() * 1500);
-            } catch (e) {}
-          }
-          setTimeout(nextGlance, 8000 + Math.random() * 12000);
+          if (head?.armature) try { head.lookAt((Math.random()-0.5)*0.4,(Math.random()-0.5)*0.2,1,600+Math.random()*400); setTimeout(()=>head.lookAtCamera(800),1500+Math.random()*1500); } catch(e){}
+          setTimeout(nextGlance, 8000+Math.random()*12000);
         }
         setTimeout(nextGlance, 8000);
-
-        // Subtle pose shifts (lean, sway) via dynamic bones already running
-        // Also trigger speakWithHands when speaking starts (already in speakResponse)
       }
 
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") head.start();
-        else head.stop();
-      });
-
-      // Also resume on any click on the page
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") head.start(); else head.stop(); });
       document.addEventListener('click', resumeAudio, { once: true });
     });
-
-    // (Old duplicate code removed — doChat/doIdle/speakResponse above handle everything)
   </script>
 </head>
 
 <body>
 
-  <!-- Top bar -->
+  <!-- Full-screen avatar -->
+  <div id="avatar-panel">
+    <div id="avatar"></div>
+    <div id="avatar-glow"></div>
+    <div id="now-talking"></div>
+
+    <div id="stream-stats">
+      <div class="stat-pill"><div class="dot"></div><span class="label">UP</span><span class="value" id="stat-uptime">0:00:00</span></div>
+      <div class="stat-pill"><span class="label">SEG</span><span class="value" id="stat-segments">0</span></div>
+      <div class="stat-pill"><span class="label">Q</span><span class="value" id="stat-queue">0</span></div>
+    </div>
+
+    <div id="subtitle-bar"></div>
+    <div id="loading-overlay">
+      <div class="logo">aria.ai</div>
+      <div class="spinner"></div>
+      <div id="loading-text">Initializing…</div>
+    </div>
+    <div id="debug"></div>
+    <div id="status"></div>
+    <div id="loading"></div>
+  </div>
+
+  <!-- Floating top bar -->
   <div id="topbar">
     <div id="topbar-left">
       <div id="live-badge"><div class="dot"></div>LIVE</div>
       <div>
-        <div id="stream-title">Aria &mdash; AI Educator</div>
-        <div id="stream-subtitle">Ask me anything about AI</div>
+        <div id="stream-title">Aria — AI Educator</div>
+        <div id="stream-subtitle">Teaching you how to build with AI</div>
       </div>
     </div>
     <div id="topbar-right">
       <div id="viewer-chip">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
-        </svg>
-        <span id="viewer-count">—</span> watching
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/></svg>
+        <span id="viewer-count">—</span>
       </div>
-      <div id="status-dot" title="Backend status"></div>
+      <div id="status-dot" title="Backend"></div>
     </div>
   </div>
 
-  <!-- Main content -->
+  <!-- Floating glass chat panel -->
   <div id="main">
+  <div id="chat-panel">
+    <div id="chat-header">💬 Chat</div>
 
-    <!-- Avatar -->
-    <div id="avatar-panel">
-      <div id="avatar"></div>
-      <div id="avatar-glow"></div>
-
-      <!-- Now talking banner -->
-      <div id="now-talking"></div>
-
-      <!-- Stream stats -->
-      <div id="stream-stats">
-        <div class="stat-pill"><div class="dot"></div><span class="label">UPTIME</span><span class="value" id="stat-uptime">0:00:00</span></div>
-        <div class="stat-pill"><span class="label">SEGMENTS</span><span class="value" id="stat-segments">0</span></div>
-        <div class="stat-pill"><span class="label">QUEUE</span><span class="value" id="stat-queue">0</span></div>
-      </div>
-
-      <div id="subtitle-bar"></div>
-      <div id="loading-overlay">
-        <div class="logo">aria.ai</div>
-        <div class="spinner"></div>
-        <div id="loading-text">Initializing…</div>
-      </div>
-      <div id="debug"></div>
-      <div id="status" style="display:none">Loading...</div>
-      <div id="loading" style="display:none"></div>
+    <div id="topic-pills">
+      <span class="pill" data-q="What is a large language model?">LLMs</span>
+      <span class="pill" data-q="Explain RAG to me">RAG</span>
+      <span class="pill" data-q="What are AI agents?">Agents</span>
+      <span class="pill" data-q="How does fine-tuning work?">Fine-tune</span>
+      <span class="pill" data-q="What are embeddings?">Embed</span>
     </div>
 
-    <!-- Chat -->
-    <div id="chat-panel">
-      <div id="chat-header">💬 Ask Aria about AI</div>
-
-      <div id="topic-pills">
-        <span class="pill" data-q="What is a large language model?">LLMs</span>
-        <span class="pill" data-q="Explain RAG to me">RAG</span>
-        <span class="pill" data-q="What are AI agents?">Agents</span>
-        <span class="pill" data-q="How does fine-tuning work?">Fine-tuning</span>
-        <span class="pill" data-q="What are embeddings?">Embeddings</span>
-        <span class="pill" data-q="What is prompt engineering?">Prompting</span>
-      </div>
-
-      <div id="hair-picker" style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px">
-        <span style="font-size:11px;color:var(--text-muted);width:100%;margin-bottom:4px">HAIR STYLE</span>
-      </div>
-
-      <div id="chat-messages"></div>
-
-      <div id="input-area">
-        <div id="input-row">
-          <input id="username-input" type="text" placeholder="name" value="viewer" spellcheck="false">
-          <input id="chat-input" type="text" placeholder="Ask about AI…" autocomplete="off" spellcheck="false">
-          <button id="send-btn" aria-label="Send">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5"/>
-            </svg>
-          </button>
-        </div>
-        <div id="queue-indicator"></div>
-      </div>
+    <div id="hair-picker" style="padding:6px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px">
+      <span style="font-size:10px;color:var(--text-muted);width:100%;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.5px">Style</span>
     </div>
 
+    <div id="chat-messages"></div>
+
+    <div id="input-area">
+      <div id="input-row">
+        <input id="username-input" type="text" placeholder="name" value="viewer" spellcheck="false">
+        <input id="chat-input" type="text" placeholder="Ask about AI…" autocomplete="off" spellcheck="false">
+        <button id="send-btn" aria-label="Send">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5"/>
+          </svg>
+        </button>
+      </div>
+      <div id="queue-indicator"></div>
+    </div>
   </div>
+  </div>
+
 </body>
 </html>
