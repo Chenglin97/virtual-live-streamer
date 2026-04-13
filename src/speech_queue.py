@@ -35,11 +35,24 @@ def generate_gpt_audio(text: str, system_prompt: str = "", voice: str = None) ->
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": text})
 
-    # Ensure complete sentences — large max_tokens so it never truncates mid-sentence
+    # Voice acting instructions for natural, human-sounding speech
     if messages and messages[0]["role"] != "system":
         messages.insert(0, {
             "role": "system",
-            "content": "IMPORTANT: Keep your spoken response to 2-3 sentences. Be concise but always finish every sentence completely. Never stop mid-word."
+            "content": (
+                "You are speaking out loud on a live stream. This is SPOKEN AUDIO, not written text.\n\n"
+                "Voice style:\n"
+                "- Speak like you're talking to a friend sitting next to you, not giving a presentation\n"
+                "- Use natural fillers: 'okay so', 'like', 'honestly', 'you know what', 'right?', 'I mean'\n"
+                "- Pause naturally between thoughts — don't rush from point to point\n"
+                "- React emotionally: gasp at surprising things, laugh at funny things, get genuinely excited\n"
+                "- Vary your energy — sometimes fast and excited, sometimes slow and thoughtful\n"
+                "- Use contractions: 'it's', 'don't', 'can't', 'that's', 'you're', never formal full forms\n"
+                "- Trail off sometimes and then come back: 'so the thing is... actually wait, let me back up'\n"
+                "- Address the audience directly: 'chat', 'you guys', 'anyone here tried this?'\n\n"
+                "NEVER sound like you're reading a blog post or textbook. Sound like a real person talking.\n"
+                "Keep to 3-5 sentences. Always finish every sentence completely."
+            )
         })
 
     body = {
@@ -173,17 +186,16 @@ class SpeechPregenQueue:
 
                     how_to = topic.get('how_to_use', '')
                     prompt = (
-                        f"[You're live streaming. Teach this topic with SPECIFIC details:]\n\n"
+                        f"[Talk about this on your stream — speak naturally like you're telling a friend:]\n\n"
                         f"TOPIC: {topic.get('topic', '')}\n"
-                        f"SUMMARY: {topic.get('summary', '')}\n"
-                        f"WHY IT MATTERS: {topic.get('why_interesting', '')}\n"
-                        f"HOW TO USE IT:\n{how_to}\n"
-                        f"TALKING POINTS:\n{talking_points}\n\n"
-                        f"[Explain this with CONCRETE specifics — name the exact tools, "
-                        f"commands, prices, and steps. Give a real example of how someone "
-                        f"would use this TODAY to build something or make money. "
-                        f"Be flirty and warm but technically deep. "
-                        f"4-6 sentences. Complete thoughts only. Do NOT stop mid-sentence.]"
+                        f"KEY INFO: {topic.get('summary', '')}\n"
+                        f"WHY COOL: {topic.get('why_interesting', '')}\n"
+                        f"HOW TO USE: {how_to}\n"
+                        f"DETAILS:\n{talking_points}\n\n"
+                        f"[Talk about this like you just discovered it and you're excited to share. "
+                        f"Weave in the specific tools and numbers naturally — don't list them. "
+                        f"Sound like a real person, not a blog post. Use fillers, reactions, contractions. "
+                        f"3-5 sentences. Finish every sentence.]"
                     )
 
                     result = generate_gpt_audio(prompt, system_prompt=self.persona)
