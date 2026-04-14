@@ -346,6 +346,17 @@
       margin-top: 4px; text-align: center; display: none;
     }
 
+    /* ── Queue visualizer ─────────────────────────── */
+    .q-block {
+      width: 20px; height: 8px; border-radius: 3px;
+      font-size: 0; transition: all 0.2s;
+    }
+    .q-block.idle { background: rgba(167,139,250,0.4); }
+    .q-block.chat { background: rgba(52,211,153,0.6); }
+    .q-block.feed { background: rgba(251,191,36,0.5); }
+    .q-block.playing { background: var(--accent); animation: qPulse 1s ease infinite; }
+    @keyframes qPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
     /* ── Hidden elements ────────────────────────── */
     #debug, #status, #loading { display: none; }
 
@@ -605,8 +616,79 @@
     }
 
     let _idleFetching = false;
+    let _lastChatTime = 0;
+    let _needsTransition = false;
+
+    function onChatReceived() {
+      _lastChatTime = Date.now();
+      _needsTransition = true;
+      speechQueue = speechQueue.filter(i => i.type === "chat" || i.type === "feed");
+      startFillerLoop();
+    }
+
+    // ── Filler: keeps Aria alive during 20s chat cooldown ──
+    let _fillerTimer = null;
+    function startFillerLoop() {
+      stopFillerLoop();
+      let count = 0;
+      _fillerTimer = setInterval(() => {
+        if (Date.now() - _lastChatTime >= 20000) { stopFillerLoop(); return; }
+        if (isPlaying) return;
+        count++;
+        try {
+          const action = count % 5;
+          if (action === 0) {
+            // Gesture
+            const gestures = ['side', 'shrug', 'namaste', 'index', 'handup'];
+            head?.playGesture(gestures[Math.floor(Math.random() * gestures.length)], 2);
+          } else if (action === 1) {
+            // Look around
+            head?.lookAt((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.2, 1, 500);
+            setTimeout(() => head?.lookAtCamera(600), 1500);
+          } else if (action === 2) {
+            // Mood
+            head?.setMood(['happy', 'hopeful', 'neutral'][Math.floor(Math.random() * 3)]);
+          } else if (action === 3 || action === 4) {
+            // Spoken filler — short reaction to what just happened
+            const fillers = [
+              "Hmm, good stuff.",
+              "Interesting.",
+              "Let me think about that for a sec.",
+              "Yeah, that's a good point actually.",
+              "Mhm.",
+              "Love that energy, chat.",
+            ];
+            const filler = fillers[Math.floor(Math.random() * fillers.length)];
+            // Use speakText for quick filler (no API call needed)
+            try { head?.speakText(filler); } catch(e) {}
+            addMessage(filler, "aria", "Aria", true);
+          }
+        } catch(e) {}
+      }, 3000);
+    }
+    function stopFillerLoop() {
+      if (_fillerTimer) { clearInterval(_fillerTimer); _fillerTimer = null; }
+    }
+
     async function doIdle() {
-      if (speechQueue.length >= 3 || _idleFetching) return;
+      if (_idleFetching) return;
+      if (_lastChatTime > 0 && (Date.now() - _lastChatTime) < 20000) return;
+      if (speechQueue.length >= 3) return;
+      if (_needsTransition) {
+        _needsTransition = false;
+        _idleFetching = true;
+        try {
+          const res = await fetch(`${BACKEND}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "system", message: "[Chat went quiet. Transition back to your topic. ONE sentence like 'Anyway, back to what I was saying about...' Then stop.]" }),
+          });
+          const data = await res.json();
+          if (data.response) enqueueSpeech(data, "idle");
+        } catch (_) {}
+        _idleFetching = false;
+        return;
+      }
       _idleFetching = true;
       try {
         const res = await fetch(`${BACKEND}/idle`);
@@ -632,6 +714,7 @@
             if (msg.message && ownMessages.has(msg.message)) { ownMessages.delete(msg.message); continue; }
             if (msg.is_idle) continue;
             if (!msg.response || !msg.audio_url) continue;
+            onChatReceived();
             enqueueSpeech(msg, "feed", msg.message, msg.username);
             const emojis = ["💜","✨","🔥","👀","💫","🌟"];
             spawnReaction(emojis[Math.floor(Math.random()*emojis.length)], msg.username);
@@ -708,6 +791,9 @@
       const upEl = document.getElementById("stat-uptime");
       const segEl = document.getElementById("stat-segments");
       const qEl = document.getElementById("stat-queue");
+      const modeEl = document.getElementById("stat-mode");
+      const vizEl = document.getElementById("queue-viz");
+
       if (upEl) {
         const s = Math.floor((Date.now() - _streamStart) / 1000);
         const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
@@ -715,8 +801,37 @@
       }
       if (segEl) segEl.textContent = window._segmentCount || 0;
       if (qEl) qEl.textContent = speechQueue.length;
+
+      // Mode indicator
+      if (modeEl) {
+        const inCooldown = _lastChatTime > 0 && (Date.now() - _lastChatTime) < 20000;
+        if (inCooldown) {
+          const remaining = Math.ceil((20000 - (Date.now() - _lastChatTime)) / 1000);
+          modeEl.textContent = `chat ${remaining}s`;
+          modeEl.style.color = "var(--accent2)";
+        } else if (isPlaying) {
+          modeEl.textContent = "speaking";
+          modeEl.style.color = "var(--accent)";
+        } else {
+          modeEl.textContent = "idle";
+          modeEl.style.color = "";
+        }
+      }
+
+      // Queue visualization — one block per queued item
+      if (vizEl) {
+        const blocks = speechQueue.slice(0, 15).map((item, i) => {
+          const cls = item.type || "idle";
+          const words = item.data?.response?.split(/\s+/)?.length || 0;
+          const title = `${cls}: ${words}w — ${(item.data?.response || "").slice(0, 40)}...`;
+          return `<div class="q-block ${cls}" title="${title}"></div>`;
+        });
+        // Add a playing block if currently speaking
+        if (isPlaying) blocks.unshift('<div class="q-block playing" title="now playing"></div>');
+        vizEl.innerHTML = blocks.join("");
+      }
     }
-    setInterval(updateStats, 1000);
+    setInterval(updateStats, 500);
 
     function handleSend() {
       if (head?.audioCtx?.state === "suspended") head.audioCtx.resume();
@@ -725,6 +840,7 @@
       if (!msg) return;
       chatInput.value = "";
       ownMessages.add(msg);
+      onChatReceived();
       addMessage(msg, "viewer", user);
       resetIdleTimer();
       fetch(`${BACKEND}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, username: user }) })
@@ -806,9 +922,24 @@
       try {
         loadingTxt.textContent = "Loading Aria…";
         await head.showAvatar({
-          url: './avatars/brunette.glb',
+          url: './avatars/vroid.glb',
           body: 'F',
           avatarMood: 'happy',
+          baseline: { headRotateX: -0.1, eyeBlinkLeft: 0.05, eyeBlinkRight: 0.05 },
+          modelDynamicBones: [
+            {"bone":"J_Sec_L_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_R_Bust1","type":"point","stiffness":400,"damping":10,"deltaLocal":[0,0.01,0],"deltaWorld":[0,-0.02,0],"limits":[[-0.01,0.01],[-0.01,0.01],[-0.01,0.01],[-0.01,0.01]]},
+            {"bone":"J_Sec_Hair2_06","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_06","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_07","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_07","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_08","type":"mix2","stiffness":100,"damping":4},
+            {"bone":"J_Sec_Hair3_08","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_12","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_12","type":"mix2","stiffness":150,"damping":4},
+            {"bone":"J_Sec_Hair2_13","type":"mix2","stiffness":100,"damping":4,"pivot":true},
+            {"bone":"J_Sec_Hair3_13","type":"mix2","stiffness":150,"damping":4},
+          ],
           lipsyncLang: 'en'
         }, (ev) => {
           if (ev.lengthComputable) loadingTxt.textContent = `Loading Aria… ${Math.round(ev.loaded / ev.total * 100)}%`;
@@ -950,7 +1081,9 @@
       <div class="stat-pill"><div class="dot"></div><span class="label">UP</span><span class="value" id="stat-uptime">0:00:00</span></div>
       <div class="stat-pill"><span class="label">SEG</span><span class="value" id="stat-segments">0</span></div>
       <div class="stat-pill"><span class="label">Q</span><span class="value" id="stat-queue">0</span></div>
+      <div class="stat-pill"><span class="label">MODE</span><span class="value" id="stat-mode">idle</span></div>
     </div>
+    <div id="queue-viz" style="position:absolute;bottom:45px;left:16px;display:flex;gap:3px;z-index:5"></div>
 
     <div id="subtitle-bar"></div>
     <div id="loading-overlay">
