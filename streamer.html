@@ -346,16 +346,86 @@
       margin-top: 4px; text-align: center; display: none;
     }
 
-    /* ── Queue visualizer ─────────────────────────── */
-    .q-block {
-      width: 20px; height: 8px; border-radius: 3px;
-      font-size: 0; transition: all 0.2s;
+    /* ── Timeline queue feed ────────────────────── */
+    #queue-feed {
+      position: absolute;
+      top: 60px; left: 16px; bottom: 50px;
+      width: 240px;
+      z-index: 5;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      mask-image: linear-gradient(to bottom, black 0%, black 85%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 85%, transparent 100%);
     }
-    .q-block.idle { background: rgba(167,139,250,0.4); }
-    .q-block.chat { background: rgba(52,211,153,0.6); }
-    .q-block.feed { background: rgba(251,191,36,0.5); }
-    .q-block.playing { background: var(--accent); animation: qPulse 1s ease infinite; }
-    @keyframes qPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* Now playing — top, bright */
+    #qf-now {
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text);
+      background: rgba(167,139,250,0.12);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(167,139,250,0.25);
+      margin-bottom: 8px;
+      flex-shrink: 0;
+      max-height: 80px;
+      overflow: hidden;
+    }
+    #qf-now .qf-label {
+      font-size: 9px; font-family: var(--mono);
+      color: var(--accent); letter-spacing: 1px;
+      text-transform: uppercase; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #qf-now .qf-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      animation: qPulse 1.5s ease infinite;
+    }
+    @keyframes qPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* Timeline track */
+    #qf-timeline {
+      flex: 1;
+      position: relative;
+      padding-left: 16px;
+      border-left: 1px solid rgba(167,139,250,0.15);
+      margin-left: 6px;
+      overflow: hidden;
+    }
+
+    .qf-entry {
+      position: relative;
+      padding: 4px 10px 4px 12px;
+      margin-bottom: 3px;
+      font-size: 10px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.35);
+      max-height: 40px;
+      overflow: hidden;
+      animation: qfFade 0.3s ease-out;
+    }
+    .qf-entry::before {
+      content: "";
+      position: absolute;
+      left: -20px; top: 8px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(167,139,250,0.25);
+      border: 1px solid rgba(167,139,250,0.3);
+    }
+    .qf-entry.chat::before { background: rgba(52,211,153,0.3); border-color: rgba(52,211,153,0.4); }
+    .qf-entry.feed::before { background: rgba(251,191,36,0.3); border-color: rgba(251,191,36,0.4); }
+    .qf-entry .qf-time {
+      font-family: var(--mono);
+      font-size: 9px;
+      opacity: 0.4;
+    }
+    @keyframes qfFade { from { opacity:0; transform:translateX(-8px) } to { opacity:1; transform:translateX(0) } }
 
     /* ── Hidden elements ────────────────────────── */
     #debug, #status, #loading { display: none; }
@@ -676,18 +746,8 @@
       if (speechQueue.length >= 3) return;
       if (_needsTransition) {
         _needsTransition = false;
-        _idleFetching = true;
-        try {
-          const res = await fetch(`${BACKEND}/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: "system", message: "[Chat went quiet. Transition back to your topic. ONE sentence like 'Anyway, back to what I was saying about...' Then stop.]" }),
-          });
-          const data = await res.json();
-          if (data.response) enqueueSpeech(data, "idle");
-        } catch (_) {}
-        _idleFetching = false;
-        return;
+        // Just resume idle — the Hermes history already knows what it was talking about
+        // No need for a special transition call
       }
       _idleFetching = true;
       try {
@@ -712,6 +772,7 @@
           for (const msg of data.messages) {
             lastFeedId = Math.max(lastFeedId, msg.id);
             if (msg.message && ownMessages.has(msg.message)) { ownMessages.delete(msg.message); continue; }
+            if (msg.username === "system") continue;
             if (msg.is_idle) continue;
             if (!msg.response || !msg.audio_url) continue;
             onChatReceived();
@@ -755,6 +816,7 @@
           if (item.data?.response) {
             addMessage(item.data.response, "aria", "Aria", true);
             if (item.data.mood) try { head.setMood(item.data.mood); } catch(_) {}
+            window._currentSegmentText = item.data.response;
             showNowTalking(item.data.response);
             window._segmentCount = (window._segmentCount || 0) + 1;
             updateStats();
@@ -762,6 +824,7 @@
           }
         }
         hideNowTalking();
+        window._currentSegmentText = null;
       } finally { isPlaying = false; isBusy = false; resetIdleTimer(); updateStats(); }
     }
 
@@ -818,17 +881,37 @@
         }
       }
 
-      // Queue visualization — one block per queued item
-      if (vizEl) {
-        const blocks = speechQueue.slice(0, 15).map((item, i) => {
-          const cls = item.type || "idle";
+      // Timeline queue feed
+      const nowText = document.getElementById("qf-now-text");
+      const timeline = document.getElementById("qf-timeline");
+      if (nowText && timeline) {
+        // Currently playing
+        if (isPlaying && window._currentSegmentText) {
+          nowText.textContent = window._currentSegmentText.slice(0, 100);
+        } else {
+          nowText.textContent = "Waiting...";
+        }
+
+        // Build timeline entries
+        let html = "";
+        let cumSeconds = 2; // 2s gap after current
+        speechQueue.slice(0, 10).forEach((item, i) => {
+          const text = (item.data?.response || "").slice(0, 80);
           const words = item.data?.response?.split(/\s+/)?.length || 0;
-          const title = `${cls}: ${words}w — ${(item.data?.response || "").slice(0, 40)}...`;
-          return `<div class="q-block ${cls}" title="${title}"></div>`;
+          const estSec = Math.max(3, Math.round(words * 0.4)); // ~0.4s per word
+          const hasAudio = !!item.data?.audio_url;
+          const cls = item.type || "idle";
+          const ready = hasAudio ? "●" : "○";
+          html += `<div class="qf-entry ${cls}">`;
+          html += `<span class="qf-time">~${cumSeconds}s ${ready}</span> `;
+          html += text || "(generating...)";
+          html += `</div>`;
+          cumSeconds += estSec + 2; // +2s gap
         });
-        // Add a playing block if currently speaking
-        if (isPlaying) blocks.unshift('<div class="q-block playing" title="now playing"></div>');
-        vizEl.innerHTML = blocks.join("");
+        if (speechQueue.length === 0) {
+          html = '<div class="qf-entry"><span class="qf-time">~3s</span> (fetching next...)</div>';
+        }
+        timeline.innerHTML = html;
       }
     }
     setInterval(updateStats, 500);
@@ -1083,7 +1166,14 @@
       <div class="stat-pill"><span class="label">Q</span><span class="value" id="stat-queue">0</span></div>
       <div class="stat-pill"><span class="label">MODE</span><span class="value" id="stat-mode">idle</span></div>
     </div>
-    <div id="queue-viz" style="position:absolute;bottom:45px;left:16px;display:flex;gap:3px;z-index:5"></div>
+    <!-- Timeline queue feed -->
+    <div id="queue-feed">
+      <div id="qf-now">
+        <div class="qf-label"><div class="qf-dot"></div>NOW</div>
+        <div id="qf-now-text">Waiting...</div>
+      </div>
+      <div id="qf-timeline"></div>
+    </div>
 
     <div id="subtitle-bar"></div>
     <div id="loading-overlay">
@@ -1124,12 +1214,7 @@
       <label id="music-label">music</label>
       <input type="range" id="music-vol" class="slider" min="0" max="100" value="15">
     </div>
-    <div class="audio-pill">
-      <span>🎤</span>
-      <label>pitch</label>
-      <input type="range" id="voice-pitch" class="slider" min="50" max="200" value="120" title="Voice pitch (100=normal, higher=younger)">
-      <span id="pitch-label">1.2x</span>
-    </div>
+    <input type="hidden" id="voice-pitch" value="108">
   </div>
 
   <!-- Floating glass chat panel -->
